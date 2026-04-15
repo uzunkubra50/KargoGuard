@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL - İlişkisel Veritabanı
+  postgres:
+    image: postgres:15
+    container_name: kargoguard-postgres
+    environment:
+      POSTGRES_USER: kargo_admin
+      POSTGRES_PASSWORD: kargo_password
+      POSTGRES_DB: kargoguard_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  # 2. RabbitMQ - Mikroservisler Arası Mesaj Kuyruğu
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: kargoguard-rabbitmq
+    ports:
+      - "5672:5672"   # C# ve Python'un haberleşeceği port
+      - "15672:15672" # Tarayıcıdan izleyeceğimiz yönetim paneli portu
+    environment:
+      RABBITMQ_DEFAULT_USER: kargo_admin
+      RABBITMQ_DEFAULT_PASS: kargo_password
+    restart: unless-stopped
+
+  # 3. MinIO - Medya (Görsel) Depolama
+  minio:
+    image: minio/minio
+    container_name: kargoguard-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   
+      - "9001:9001"   # Tarayıcıdan fotoğrafları göreceğimiz port
+    environment:
+      MINIO_ROOT_USER: kargo_admin
+      MINIO_ROOT_PASSWORD: kargo_password
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  minio_data:
