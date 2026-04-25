@@ -1,0 +1,41 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\Kübra\\Desktop\\KargoGuard\\KargoGuard.Web3\\contracts\\CargoGuard.sol": {
+      "lastModificationDate": 1775672614844,
+      "contentHash": "aed7728fffd4647b5b1c9517bdf09270",
+      "sourceName": "contracts/CargoGuard.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "evmVersion": "paris",
+          "optimizer": {
+            "enabled": false,
+            "runs": 200
+          },
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "CargoGuard"
+      ]
+    }
+  }
+}
