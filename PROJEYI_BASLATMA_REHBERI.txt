@@ -1,0 +1,72 @@
+# ==============================================================
+# KARGOGUARD PROJESİ - BAŞLATMA REHBERİ (Terminal Komutları)
+# ==============================================================
+
+DİKKAT: Her şeyden önce bilgisayarınızda "Docker Desktop" uygulamasının açık olduğundan emin olun!
+
+----------------------------------------------------------------
+1. ADIM: ALTYAPIYI BAŞLATMA (Docker Compose)
+----------------------------------------------------------------
+Bu adım Veritabanını (PostgreSQL), Mesaj Kuyruğunu (RabbitMQ) ve Resim Sunucusunu (MinIO) ayağa kaldırır.
+Eğer bu kapalı olursa sistem çöker!
+
+Yeni Bir Terminal Açın ve yapıştırın:
+  cd c:\Users\Kübra\Desktop\KargoGuard
+  docker-compose up -d
+
+
+----------------------------------------------------------------
+2. ADIM: C# WEB API'Yİ BAŞLATMA (Merkezi Beyin)
+----------------------------------------------------------------
+Bu adım, veritabanı ile konuşan ve React'e veri sağlayan ana yapıyı çalıştırır.
+
+Yeni Bir Terminal Açın ve yapıştırın:
+  cd c:\Users\Kübra\Desktop\KargoGuard\KargoGuard.API
+  dotnet run
+
+
+----------------------------------------------------------------
+3. ADIM: PYTHON YAPAY ZEKA İŞÇİSİ (RabbitMQ & Roboflow)
+----------------------------------------------------------------
+Bu adım, arkada bekleyip sisteme fotoğraf düştüğü an yakalayarak Roboflow'a (Yapay Zeka v2'ye) gönderen işçidir.
+
+Yeni Bir Terminal Açın ve yapıştırın:
+  cd c:\Users\Kübra\Desktop\KargoGuard\KargoGuard.AI
+  venv\Scripts\python.exe consumer.py
+
+
+----------------------------------------------------------------
+4. ADIM: REACT FRONTEND (Görsel Dashboard)
+----------------------------------------------------------------
+Bu adım, ekranda o havalı grafikleri ve kargo listesini gördüğümüz web sayfasını çalıştırır.
+
+Yeni Bir Terminal Açın ve yapıştırın:
+  cd c:\Users\Kübra\Desktop\KargoGuard\vite-project
+  npm run dev
+
+
+----------------------------------------------------------------
+MÜKEMMEL! 🚀 
+Tarayıcınızdan http://localhost:5173 adresine giderek Dashboard'ı kullanabilirsiniz.
+
+
+# ==============================================================
+# ARKA PLAN YÖNETİM PANELLERİ (DOCKER SERVİSLERİ)
+# ==============================================================
+Proje çalışırken arka kapıdan verileri canlı izlemek ve jüriye göstermek için aşağıdaki linklere tarayıcınızdan girebilirsiniz.
+
+ORTAK GİRİŞ BİLGİLERİ (TÜMÜ İÇİN):
+  Kullanıcı Adı : kargo_admin
+  Şifre         : kargo_password
+
+1. MİNİO (BULUT FOTOĞRAF DEPOSU):
+   - Adres: http://localhost:9001
+   - Özellik: Yüklenen tüm fotoğrafları ve "kargo-images" bucket'ını gösterir. Amazon S3 muadilidir.
+
+2. RABBİTMQ (YAPAY ZEKA - API HABERLEŞME TRAFİĞİ):
+   - Adres: http://localhost:15672
+   - Özellik: C# ile Python arasındaki anlık mesaj iletişim kuyruklarını ve yoğunluk grafiklerini gösterir.
+
+3. POSTGRESQL (VERİTABANI):
+   - Veri Tabanı Kökü: Host: localhost | Port: 5432 | DB: kargoguard_db
+   - Özellik: PostgreSQL'in kendi internet sitesi yoktur, arkaplanda çalışır. React panelinizdeki veriler doğrudan buradan çekilmektedir.
