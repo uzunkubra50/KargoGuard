@@ -47,21 +47,21 @@ docker-compose up -d
 ### 2. Merkezi API'yi Başlatma (C#)
 Veritabanı ile iletişim kuran ve arayüze veri sağlayan ana yapıyı çalıştırır. Yeni bir terminalde:
 ```bash
-cd KargoGuard.API
+cd backend/KargoGuard.API
 dotnet run
 ```
 
 ### 3. Yapay Zeka İşçisini Başlatma (Python)
 Kargo fotoğraflarını kuyruktan alıp analiz eden Python servisini çalıştırır. Yeni bir terminalde:
 ```bash
-cd KargoGuard.AI
+cd backend/KargoGuard.AI
 venv\Scripts\python.exe consumer.py
 ```
 
 ### 4. Yönetim Panelini Başlatma (React)
 Kargo istatistiklerini görebileceğiniz web arayüzünü başlatır. Yeni bir terminalde:
 ```bash
-cd vite-project
+cd frontend
 npm run dev
 ```
 

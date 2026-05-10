@@ -19,15 +19,15 @@ echo [OK] Docker Servisleri Ayakta.
 echo.
 
 echo [2/4] .NET API Servisi Baslatiliyor...
-start "KargoGuard - .NET API" cmd /k "cd KargoGuard.API && dotnet run --launch-profile http"
+start "KargoGuard - .NET API" cmd /k "cd backend\KargoGuard.API && dotnet run --launch-profile http"
 timeout /t 5 > nul
 
 echo [3/4] Python AI Consumer (Gemini + YOLO) Baslatiliyor...
-start "KargoGuard - AI Consumer" cmd /k "cd KargoGuard.AI && .\venv\Scripts\python.exe -u consumer.py"
+start "KargoGuard - AI Consumer" cmd /k "cd backend\KargoGuard.AI && .\venv\Scripts\python.exe -u consumer.py"
 timeout /t 3 > nul
 
 echo [4/4] React Frontend (Vite) Baslatiliyor...
-start "KargoGuard - Frontend" cmd /k "cd vite-project && npm run dev"
+start "KargoGuard - Frontend" cmd /k "cd frontend && npm run dev"
 
 echo.
 echo ====================================================

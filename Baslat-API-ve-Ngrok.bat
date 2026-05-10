@@ -10,7 +10,7 @@ echo [!] UYARI: Bilgisayarinizda 'ngrok' bulunamadigi icin
 echo     ozel bir 'WiFi Baglanti Modu' aktif edildi.
 echo.
 echo [1] KargoGuard.API baslatiliyor... (Port: 5229)
-cd KargoGuard.API
+cd backend\KargoGuard.API
 start "KargoGuard API (C#)" cmd /k "dotnet run --launch-profile http"
 cd ..
 

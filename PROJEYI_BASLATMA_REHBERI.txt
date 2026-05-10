@@ -21,7 +21,7 @@ Yeni Bir Terminal Açın ve yapıştırın:
 Bu adım, veritabanı ile konuşan ve React'e veri sağlayan ana yapıyı çalıştırır.
 
 Yeni Bir Terminal Açın ve yapıştırın:
-  cd c:\Users\Kübra\Desktop\KargoGuard\KargoGuard.API
+  cd c:\Users\Kübra\Desktop\KargoGuard\backend\KargoGuard.API
   dotnet run
 
 
@@ -31,7 +31,7 @@ Yeni Bir Terminal Açın ve yapıştırın:
 Bu adım, arkada bekleyip sisteme fotoğraf düştüğü an yakalayarak Roboflow'a (Yapay Zeka v2'ye) gönderen işçidir.
 
 Yeni Bir Terminal Açın ve yapıştırın:
-  cd c:\Users\Kübra\Desktop\KargoGuard\KargoGuard.AI
+  cd c:\Users\Kübra\Desktop\KargoGuard\backend\KargoGuard.AI
   venv\Scripts\python.exe consumer.py
 
 
@@ -41,7 +41,7 @@ Yeni Bir Terminal Açın ve yapıştırın:
 Bu adım, ekranda o havalı grafikleri ve kargo listesini gördüğümüz web sayfasını çalıştırır.
 
 Yeni Bir Terminal Açın ve yapıştırın:
-  cd c:\Users\Kübra\Desktop\KargoGuard\vite-project
+  cd c:\Users\Kübra\Desktop\KargoGuard\frontend
   npm run dev
 
 
