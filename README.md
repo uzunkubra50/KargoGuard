@@ -74,8 +74,7 @@ Tüm servisler başarıyla ayağa kalktıktan sonra tarayıcınızdan [**http://
 Sistem çalışırken arka plandaki servisleri izlemek için aşağıdaki adresleri kullanabilirsiniz.
 
 **Ortak Giriş Bilgileri:**
-- **Kullanıcı Adı:** `kargo_admin`
-- **Şifre:** `kargo_password`
+- Güvenlik nedeniyle varsayılan giriş bilgileri `docker-compose.yml` veya `.env` dosyası içerisinde yer almaktadır. Lütfen ilgili servislerin çevre değişkenlerini (Environment Variables) kontrol ediniz.
 
 | Servis | Adres | Açıklama |
 | :--- | :--- | :--- |

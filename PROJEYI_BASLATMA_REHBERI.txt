@@ -56,8 +56,7 @@ Tarayıcınızdan http://localhost:5173 adresine giderek Dashboard'ı kullanabil
 Proje çalışırken arka kapıdan verileri canlı izlemek ve jüriye göstermek için aşağıdaki linklere tarayıcınızdan girebilirsiniz.
 
 ORTAK GİRİŞ BİLGİLERİ (TÜMÜ İÇİN):
-  Kullanıcı Adı : kargo_admin
-  Şifre         : kargo_password
+  Güvenlik nedeniyle varsayılan giriş bilgileri docker-compose.yml veya .env dosyası içerisinde yer almaktadır.
 
 1. MİNİO (BULUT FOTOĞRAF DEPOSU):
    - Adres: http://localhost:9001
