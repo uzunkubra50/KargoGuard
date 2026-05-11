@@ -20,7 +20,7 @@ echo.
 echo Telefonunuz ve bilgisayariniz AYNI WiFi'ye bagliysa 
 echo App.js icindeki linki senin icin su adresle guncelledim:
 echo.
-echo 🔗 http://172.31.134.101:5229
+echo 🔗 http://172.31.182.140:5229
 echo.
 echo Islem tamam! Uygulamayi telefonunda EXPO GO ile ac ve dene.
 echo ========================================================

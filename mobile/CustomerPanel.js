@@ -9,7 +9,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // ⚙️  BAĞLANTI AYARI — Bilgisayarınızın WiFi IP Adresi
 // ─────────────────────────────────────────────────────────────────────────────
-const API_BASE_URL   = 'http://172.31.173.193:5229';
+const API_BASE_URL   = 'http://172.31.182.140:5229';
 // customer-upload: Gemini AI ile anlık hasar analizi yapar
 const API_URL        = `${API_BASE_URL}/api/Cargo/customer-upload`;
 

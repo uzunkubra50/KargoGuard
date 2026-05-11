@@ -47,7 +47,7 @@ ROBOFLOW_URL = "https://detect.roboflow.com/kargoguard-ai/2?api_key=ROBOFLOW_KEY
 # Gemini Ayarları
 # ---------------------------------------------------------
 GEMINI_API_KEY = "GEMINI_API_KEY_REMOVED"
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_URL     = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
@@ -506,13 +506,46 @@ def process_image(ch, method, properties, body):
 
         # ==================================================
         # DELIVERY aksiyonu — Kurye teslimat fotoğrafı
-        # (Eskisiyle aynı — customer-upload Gemini zaten bunu yapıyor)
         # ==================================================
         elif action == "delivery":
             cargo_id = int(data.get("cargo_id", 0))
 
-            is_inner_damaged  = ai_prediction_class in ["hasarli_kutu", "ic_hasar", "hasar"]
-            delivery_decision = "HASARLI" if is_inner_damaged else "SAĞLAM"
+            # Delivery için sadece Gemini analizi yap (İç hasar/kırık vs. kontrolü)
+            delivery_request = {
+                "contents": [{
+                    "parts": [
+                        {"text": "Sen bir kargo hasar uzmanısın. Fotoğraftaki üründe kırık, çatlak, ezilme veya herhangi bir fiziksel hasar var mı? DİKKAT: Gönderilen fotoğraflar taşıma sırasında hasar görmüş eşyaları içerir. Görseldeki nesne parçalanmış, kırılmış veya bütünlüğü bozulmuşsa KESİNLİKLE 'HASARLI' demelisin. Lütfen sadece şu iki formattan birini kullan: 'HASARLI - %X' veya 'SAĞLAM - %X'. Burada X, tahmininin yüzde olarak güven skorudur. Başka hiçbir şey yazma."},
+                        {"inline_data": {"mime_type": "image/jpeg", "data": image_base64}}
+                    ]
+                }],
+                "generationConfig": {"temperature": 0.2}
+            }
+            
+            gemini_resp = make_gemini_request(delivery_request)
+            
+            delivery_decision = "SAĞLAM"
+            ai_confidence = 0.0
+            ai_prediction_class = "bilinmiyor"
+            
+            if gemini_resp.ok:
+                resp_json = gemini_resp.json()
+                ai_text = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().upper()
+                
+                is_inner_damaged = "HASARLI" in ai_text or "KIRIK" in ai_text or "ÇATLAK" in ai_text
+                delivery_decision = "HASARLI" if is_inner_damaged else "SAĞLAM"
+                ai_prediction_class = "ic_hasar" if is_inner_damaged else "saglamli"
+                
+                import re
+                match = re.search(r"%(\d+(?:[.,]\d+)?)", ai_text)
+                if match:
+                    ai_confidence = float(match.group(1).replace(',', '.')) / 100.0
+            else:
+                print(f"[!] Delivery Gemini API hata: {gemini_resp.status_code}")
+                ai_prediction_class = "gemini_unavailable"
+                delivery_decision = "MANUEL_INCELEME"
+                is_inner_damaged = False
+
+            is_inner_damaged = (delivery_decision == "HASARLI")
 
             conn = psycopg2.connect(
                 host=DB_HOST, port=DB_PORT,

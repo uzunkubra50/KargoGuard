@@ -398,7 +398,7 @@ public class CargoController : ControllerBase
                     {
                         parts = new object[]
                         {
-                            new { text = "Sen bir kargo hasar uzmanısın. Fotoğraftaki üründe kırık, çatlak, ezilme veya herhangi bir fiziksel hasar var mı? Lütfen sadece şu iki formattan birini kullan: 'HASARLI - %X' veya 'SAĞLAM - %X'. Burada X, tahmininin yüzde olarak güven skorudur. Başka hiçbir şey yazma." },
+                            new { text = "Sen bir kargo hasar uzmanısın. Fotoğraftaki üründe kırık, çatlak, ezilme veya herhangi bir fiziksel hasar var mı? DİKKAT: Gönderilen fotoğraflar taşıma sırasında hasar görmüş eşyaları içerir. Görseldeki nesne parçalanmış, kırılmış veya bütünlüğü bozulmuşsa KESİNLİKLE 'HASARLI' demelisin. Lütfen sadece şu iki formattan birini kullan: 'HASARLI - %X' veya 'SAĞLAM - %X'. Burada X, tahmininin yüzde olarak güven skorudur. Başka hiçbir şey yazma." },
                             new
                             {
                                 inline_data = new
@@ -454,16 +454,40 @@ public class CargoController : ControllerBase
                     var connectionString = _configuration.GetConnectionString("DefaultConnection");
                     using var connection = new NpgsqlConnection(connectionString);
 
-                    await connection.ExecuteAsync(
-                        "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP WHERE id = @Id",
-                        new
-                        {
-                            Photo = objectName,
-                            Conf = 0.0,
-                            Class = "gemini_unavailable",
-                            Dec = "MANUEL_INCELEME",
-                            Id = parsedFallbackId
-                        });
+                    // --- NEW WEB3 CODE FOR FALLBACK ---
+                    try
+                    {
+                        var newStatus = "Manuel İnceleme (API Hatası)";
+                        var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(parsedFallbackId, newStatus, objectName);
+                        
+                        await connection.ExecuteAsync(
+                            "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP, tx_hash = @TxHash, status = @Status WHERE id = @Id",
+                            new
+                            {
+                                Photo = objectName,
+                                Conf = 0.0,
+                                Class = "gemini_unavailable",
+                                Dec = "MANUEL_INCELEME",
+                                TxHash = txHash,
+                                Status = newStatus,
+                                Id = parsedFallbackId
+                            });
+                    }
+                    catch (Exception web3Ex)
+                    {
+                        _logger.LogError(web3Ex, "Manuel inceleme durumu için Web3 senkronizasyonu başarısız.");
+                        
+                        await connection.ExecuteAsync(
+                            "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP WHERE id = @Id",
+                            new
+                            {
+                                Photo = objectName,
+                                Conf = 0.0,
+                                Class = "gemini_unavailable",
+                                Dec = "MANUEL_INCELEME",
+                                Id = parsedFallbackId
+                            });
+                    }
                 }
 
                 return Ok(new
@@ -493,7 +517,7 @@ public class CargoController : ControllerBase
 
             // 8. "HASARLI - %85" veya "SAĞLAM - %92" metnini ayıkla
             var aiTextUpper  = aiText.Trim().ToUpperInvariant();
-            bool isDamaged   = aiTextUpper.StartsWith("HASARLI");
+            bool isDamaged   = aiTextUpper.Contains("HASARLI") || aiTextUpper.Contains("KIRIK") || aiTextUpper.Contains("ÇATLAK");
 
             // Yüzde skorunu ayıkla (örn: "HASARLI - %87.5" → 0.875)
             double confidence = 0.0;
@@ -521,6 +545,25 @@ public class CargoController : ControllerBase
                     "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP WHERE id = @Id",
                     new { Photo = objectName, Conf = confidence, Class = classStr, Dec = decStr, Id = parsedId }
                 );
+
+                // --- NEW WEB3 CODE ---
+                try
+                {
+                    var newStatus = isDamaged ? "Hasarlı Teslimat (Müşteri Bildirimi)" : "Sorunsuz Teslim (Müşteri Onayı)";
+                    var liabilityNote = isDamaged ? "İçerikte hasar tespit edildi. Yetersiz paketleme veya dış darbe kaynaklı olabilir." : "Tüm YZ testleri başarılı. Sorunsuz teslimat.";
+                    
+                    var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(parsedId, newStatus, objectName);
+                    
+                    await connection.ExecuteAsync(
+                        "UPDATE cargo_analysis_results SET tx_hash = @TxHash, status = @Status, liability_note = @Note WHERE id = @Id",
+                        new { TxHash = txHash, Status = newStatus, Note = liabilityNote, Id = parsedId }
+                    );
+                }
+                catch (Exception web3Ex)
+                {
+                    _logger.LogError(web3Ex, "Müşteri hasar kaydı için Web3 Blockchain entegrasyonu başarısız.");
+                }
+                // ---------------------
             }
 
             return Ok(new

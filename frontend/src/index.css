@@ -1,3 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    /* Çok daha ferah, aydınlık ve premium (Macbook arayüzü gibi) açık tema renkleri */
+    --bg-app: #f4f7fe;
+    --text-main: #0f172a;
+    --text-muted: #64748b;
+    --bg-glass: rgba(255, 255, 255, 0.95);
+    --bg-glass-hover: rgba(255, 255, 255, 1);
+    --bg-card: rgba(255, 255, 255, 0.85);
+    --border-glass: rgba(226, 232, 240, 0.8);
+    /* slate-200 daha temiz bir gri */
+  }
+
+  .dark {
+    --bg-app: #060B14;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --bg-glass: rgba(11, 18, 33, 0.8);
+    --bg-glass-hover: rgba(17, 27, 49, 0.9);
+    --bg-card: rgba(17, 27, 49, 0.6);
+    --border-glass: rgba(255, 255, 255, 0.05);
+  }
+
+  body {
+    background-color: var(--bg-app);
+    color: var(--text-main);
+    font-family: 'Outfit', sans-serif;
+    transition: background-color 0.4s ease, color 0.4s ease;
+  }
+
+  /* Koyu mod için grid arka plan */
+  .dark body {
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-position: top center, center center, center center;
+  }
+
+  /* Açık mod için grid arka plan - çok daha yumuşak */
+  :root body {
+    background-image:
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+      linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+    background-position: top center, center center, center center;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    background-color: var(--bg-glass);
+    border: 1px solid var(--border-glass);
+    @apply backdrop-blur-xl shadow-lg dark:shadow-2xl transition-all duration-300;
+  }
+
+  .glass-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-glass);
+    @apply backdrop-blur-md shadow-sm dark:shadow-lg transition-all duration-300;
+  }
+
+  .glass-card:hover {
+    background-color: var(--bg-glass-hover);
+    @apply border-indigo-300 dark:border-indigo-400/50 shadow-[0_10px_30px_rgba(99, 102, 241, 0.1)] dark:shadow-[0_0_20px_rgba(99, 102, 241, 0.15)];
+    transform: translateY(-2px);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--text-muted);
+    opacity: 0.5;
+    border-radius: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-main);
+  }
+}
