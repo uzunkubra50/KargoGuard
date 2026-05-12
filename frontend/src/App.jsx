@@ -16,6 +16,203 @@ const Icons = {
   Document: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>),
   Filter: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/></svg>),
   Activity: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>),
+  User: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>),
+  Lock: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>),
+  ChevronRight: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>),
+  Logout: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>),
+};
+
+const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }) => (
+  <div className="space-y-1.5">
+    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">{icon}</span>
+      <input
+        type={type} value={value} onChange={onChange} placeholder={placeholder}
+        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-arasBlue focus:bg-white focus:ring-2 focus:ring-arasBlue/10 transition"
+      />
+    </div>
+  </div>
+);
+
+const EnterpriseLogin = ({ onLogin }) => {
+  const [loadingRole, setLoadingRole] = useState(null);
+  const [role, setRole]               = useState('admin');
+  const [adminEmail, setAdminEmail]   = useState('');
+  const [adminPwd, setAdminPwd]       = useState('');
+  const [kuryeId, setKuryeId]         = useState('');
+  const [kuryePwd, setKuryePwd]       = useState('');
+  const [trackCode, setTrackCode]     = useState('');
+  const [trackPhone, setTrackPhone]   = useState('');
+
+  const login = (e) => {
+    e?.preventDefault();
+    setLoadingRole(role);
+    setTimeout(() => onLogin(role), 1500);
+  };
+
+  const ROLES = [
+    { key: 'admin',   label: 'Admin',   sub: 'Web Dashboard',      color: '#6366f1', icon: '🛡' },
+    { key: 'kurye',   label: 'Kurye',   sub: 'Mobil Uygulama',     color: '#10b981', icon: '🚴' },
+    { key: 'musteri', label: 'Müşteri', sub: 'Kargo Takip',        color: '#f59e0b', icon: '📦' },
+  ];
+
+  const features = [
+    { color: '#34d399', text: 'Roboflow ile anlık görsel hasar analizi' },
+    { color: '#60a5fa', text: 'G-Force sensörü ile darbe takibi' },
+    { color: '#a78bfa', text: 'Etherscan üzerinde denetlenebilir kanıt' },
+  ];
+  const stats = [
+    { val: '10K+', label: 'Analiz edilen kargo' },
+    { val: '%99.1', label: 'Tespit doğruluğu' },
+    { val: '3x', label: 'Daha hızlı denetim' },
+  ];
+
+  const activeRole = ROLES.find(r => r.key === role);
+
+  const RightForm = () => {
+    if (role === 'admin') return (
+      <form onSubmit={login} className="space-y-4">
+        <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@araskargo.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
+        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} />
+        <button type="button" onClick={login}
+          className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 transition">
+          <Icons.Activity className="w-3.5 h-3.5" /> Kurumsal SSO ile giriş
+        </button>
+        <button type="submit" disabled={!!loadingRole}
+          className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
+          style={{ background: '#1e293b', color: 'white' }}>
+          {loadingRole === 'admin' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Doğrulanıyor...</span></> : <><Icons.Shield className="w-4 h-4"/><span>Giriş yap</span></>}
+        </button>
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500">
+          ℹ️ Admin hesapları <strong>sadece sistem yöneticisi</strong> tarafından oluşturulur.<br/>
+          <span className="text-slate-400">👁 Tüm kargolar · Tüm kuryeler · Blockchain logları</span>
+        </div>
+      </form>
+    );
+    if (role === 'kurye') return (
+      <form onSubmit={login} className="space-y-4">
+        <InputField label="Kurye ID veya telefon" icon="📋" placeholder="KRY-00142" value={kuryeId} onChange={e => setKuryeId(e.target.value)} />
+        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••" value={kuryePwd} onChange={e => setKuryePwd(e.target.value)} />
+        <button type="submit" disabled={!!loadingRole}
+          className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
+          style={{ background: '#1e293b', color: 'white' }}>
+          {loadingRole === 'kurye' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Doğrulanıyor...</span></> : <><Icons.Shield className="w-4 h-4"/><span>Giriş yap</span></>}
+        </button>
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500 space-y-1">
+          <p>ℹ️ Kurye hesabı admin tarafından oluşturulur. İlk girişte şifre değiştirme zorunludur.</p>
+          <p className="text-[10px]">1 Admin panelden kurye oluştur → ID + geçici şifre üret</p>
+          <p className="text-[10px]">2 Kurye mobilden giriş yapar → şifresini değiştirir</p>
+          <p className="text-[10px]">3 Sadece kendi teslimatlarını görür</p>
+        </div>
+      </form>
+    );
+    return (
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Takip Kodu</label>
+          <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 text-center">
+            <input type="text" value={trackCode} onChange={e => setTrackCode(e.target.value.toUpperCase())}
+              placeholder="ARS - 0000000"
+              className="w-full text-center text-lg font-mono font-black text-slate-900 bg-transparent outline-none placeholder-slate-300 tracking-widest"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">Takip kodu gir</p>
+          </div>
+        </div>
+        <InputField label="Telefon (doğrulama)" icon="📞" placeholder="05XX XXX XX XX" value={trackPhone} onChange={e => setTrackPhone(e.target.value)} />
+        <button onClick={login} disabled={!!loadingRole}
+          className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
+          style={{ background: '#1e293b', color: 'white' }}>
+          {loadingRole === 'musteri' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Sorgulanıyor...</span></> : <><Icons.Eye className="w-4 h-4"/><span>Kargomu sorgula</span></>}
+        </button>
+        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500">
+          <p>ℹ️ Hesap açmaya gerek yok. Takip kodu + telefon eşleşirse kargo durumu ve Blockchain kanıtı görüntülenir.</p>
+          <p className="text-[10px] text-slate-400 mt-1">👁 Sadece o kargonun durumu + Etherscan linki</p>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen flex font-sans">
+      <div className="w-full flex">
+
+        {/* ── SOL: Mavi Panel ── */}
+        <div className="hidden md:flex flex-col justify-between w-[42%] p-12 text-white" style={{ background: 'linear-gradient(155deg, #002E6D 0%, #0047A8 60%, #1565C0 100%)' }}>
+          <div>
+            <div className="flex items-center gap-3 mb-10">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30">
+                <Icons.Box className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="font-black text-lg leading-tight">KargoGuard AI</div>
+                <div className="text-xs text-blue-200 font-medium">Kurumsal Panel</div>
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-1.5 text-xs font-semibold text-blue-100 mb-8">
+              <Icons.Shield className="w-3.5 h-3.5" /> Blockchain ile güvence altında
+            </div>
+            <h2 className="text-3xl font-black leading-snug tracking-tight mb-4">Kargo hasarını yapay zeka ile tespit edin</h2>
+            <p className="text-sm text-blue-200 leading-relaxed mb-8">IoT sensör verileri ve görüntü analizi birleşimiyle her teslimatın kaydı değiştirilemez şekilde Ethereum'a işlenir.</p>
+            <ul className="space-y-3 mb-10">
+              {features.map((f, i) => (
+                <li key={i} className="flex items-center gap-3 text-sm text-blue-100">
+                  <span className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: f.color + '40', border: `1px solid ${f.color}` }} />
+                  {f.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="flex gap-8 pt-6 border-t border-white/10">
+            {stats.map((s, i) => (
+              <div key={i}>
+                <div className="text-2xl font-black">{s.val}</div>
+                <div className="text-xs text-blue-300 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* ── SAĞ: Form Paneli ── */}
+        <div className="flex-1 bg-white flex flex-col items-center justify-center px-8 py-12 overflow-y-auto">
+          <div className="w-full max-w-sm">
+            <h1 className="text-2xl font-black text-slate-900 mb-1">Giriş yap</h1>
+            <p className="text-sm text-slate-500 mb-6">Rolünüzü seçerek devam edin</p>
+
+            {/* Rol Kartları */}
+            <div className="grid grid-cols-3 gap-2 mb-6">
+              {ROLES.map(r => (
+                <button key={r.key} type="button" onClick={() => setRole(r.key)}
+                  className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-all text-center`}
+                  style={role === r.key
+                    ? { backgroundColor: r.color, borderColor: r.color, color: 'white' }
+                    : { backgroundColor: 'white', borderColor: '#e2e8f0', color: '#64748b' }
+                  }
+                >
+                  <span className="text-base">{r.icon}</span>
+                  <span className="text-xs font-bold">{r.label}</span>
+                  <span className="text-[9px] font-medium opacity-75">{r.sub}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Seçilen Role Göre Form */}
+            <div key={role} className="animate-fade-in">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="text-base">{activeRole.icon}</span>
+                <div>
+                  <div className="text-sm font-black text-slate-900">{activeRole.label} girişi</div>
+                </div>
+              </div>
+              <RightForm />
+            </div>
+
+            <p className="text-center text-[10px] text-slate-400 mt-6">🔒 256-bit SSL · ISO 27001 uyumlu</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 const fmt = (n, d = 1) => Number(n).toFixed(d);
@@ -36,6 +233,181 @@ const friendlyClass = (cls) => {
   };
   const key = cls.trim().toLowerCase();
   return map[key] ?? cls.replace(/_/g, ' ');
+};
+
+/* ══════════════════════════════════════════════
+   KURYE VIEW  — Sadece kendi teslimatları
+══════════════════════════════════════════════ */
+const KuryeView = ({ onLogout }) => {
+  const [cargos, setCargos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  // Demo: Kurye sadece tek sayılı ID'lere sahip kargoları görür
+  useEffect(() => {
+    fetch('http://localhost:5229/api/cargo/results')
+      .then(r => r.json())
+      .then(data => { setCargos(data.filter(c => c.id % 2 !== 0)); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const statusColor = (d) => d === 'HASARLI'
+    ? 'bg-red-50 text-red-600 border-red-200'
+    : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#10b981' }}>
+            <Icons.Box className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <div className="font-black text-slate-900">Kurye Paneli</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Atanan Teslimatlar</div>
+          </div>
+        </div>
+        <button onClick={onLogout} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-3 py-1.5 transition">Çıkış Yap</button>
+      </header>
+
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-black text-slate-900">Benim Teslimatlarım</h2>
+          <span className="text-sm text-slate-500 bg-white border border-slate-200 rounded-full px-3 py-1">{cargos.length} kargo</span>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20"><div className="w-8 h-8 border-4 border-emerald-200 border-t-emerald-500 rounded-full animate-spin" /></div>
+        ) : cargos.length === 0 ? (
+          <div className="text-center py-20 text-slate-400">Atanmış teslimat bulunmuyor.</div>
+        ) : (
+          <div className="space-y-3">
+            {cargos.map(c => (
+              <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between hover:shadow-md transition">
+                <div className="flex items-center gap-4">
+                  {c.imageName && (
+                    <img src={`http://localhost:9000/kargo-images/${c.imageName}`} className="w-14 h-14 rounded-xl object-cover border border-slate-100" />
+                  )}
+                  <div>
+                    <div className="font-bold text-slate-900">Kargo #{c.id}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{c.isFragile ? '🍷 Hassas Ürün' : '📦 Standart'}</div>
+                    {c.sarsintiVerisi > 0 && <div className="text-xs text-slate-400 mt-0.5">G-Force: {c.sarsintiVerisi}G</div>}
+                  </div>
+                </div>
+                <span className={`text-xs font-bold px-3 py-1.5 rounded-full border ${statusColor(c.finalDecision)}`}>
+                  {c.finalDecision || 'Bekliyor'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+};
+
+/* ══════════════════════════════════════════════
+   MÜŞTERİ VIEW  — Sadece kendi kargosunun durumu
+══════════════════════════════════════════════ */
+const MusteriView = ({ onLogout }) => {
+  const [query, setQuery] = useState('');
+  const [result, setResult] = useState(null);
+  const [searching, setSearching] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  const handleSearch = async (e) => {
+    e.preventDefault();
+    if (!query.trim()) return;
+    setSearching(true); setResult(null); setNotFound(false);
+    try {
+      const r = await fetch('http://localhost:5229/api/cargo/results');
+      const data = await r.json();
+      const found = data.find(c => String(c.id) === query.trim());
+      if (found) setResult(found);
+      else setNotFound(true);
+    } catch { setNotFound(true); }
+    finally { setSearching(false); }
+  };
+
+  const isDmg = result?.finalDecision === 'HASARLI';
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
+      <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: '#f59e0b' }}>
+            <Icons.Eye className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <div className="font-black text-slate-900">Kargo Takip</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider">Müşteri Paneli</div>
+          </div>
+        </div>
+        <button onClick={onLogout} className="text-xs text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-3 py-1.5 transition">Çıkış Yap</button>
+      </header>
+
+      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md">
+          <h2 className="text-2xl font-black text-slate-900 text-center mb-2">Kargonuzu Takip Edin</h2>
+          <p className="text-sm text-slate-500 text-center mb-8">Kargo takip numaranızı girerek durumunu öğrenin.</p>
+
+          <form onSubmit={handleSearch} className="flex gap-2 mb-8">
+            <input
+              type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Takip No (örn: 1, 2, 3...)"
+              className="flex-1 px-4 py-3 rounded-xl border border-slate-300 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
+            />
+            <button type="submit" disabled={searching}
+              className="px-5 py-3 rounded-xl text-white font-bold text-sm transition disabled:opacity-60"
+              style={{ background: '#f59e0b' }}>
+              {searching ? <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : 'Sorgula'}
+            </button>
+          </form>
+
+          {notFound && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-center text-red-600 text-sm font-semibold">
+              Bu takip numarasına ait kargo bulunamadı.
+            </div>
+          )}
+
+          {result && (
+            <div className={`rounded-2xl border-2 p-6 ${isDmg ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'}`}>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="font-black text-slate-900 text-lg">Kargo #{result.id}</div>
+                  <div className="text-xs text-slate-500">{result.isFragile ? '🍷 Hassas Ürün' : '📦 Standart Paket'}</div>
+                </div>
+                <span className={`font-black text-sm px-4 py-2 rounded-full border-2 ${isDmg ? 'bg-red-100 text-red-600 border-red-300' : 'bg-emerald-100 text-emerald-700 border-emerald-300'}`}>
+                  {isDmg ? '⚠️ HASARLI' : '✅ SAĞLAM'}
+                </span>
+              </div>
+
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between py-2 border-b border-black/10">
+                  <span className="text-slate-600">AI Analiz Kararı</span>
+                  <span className="font-bold text-slate-900">{result.finalDecision || '—'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b border-black/10">
+                  <span className="text-slate-600">Teslimat Durumu</span>
+                  <span className="font-bold text-slate-900">{result.status || 'Bekliyor'}</span>
+                </div>
+                {result.sarsintiVerisi > 0 && (
+                  <div className="flex justify-between py-2 border-b border-black/10">
+                    <span className="text-slate-600">Darbe Verisi</span>
+                    <span className={`font-bold ${result.sarsintiVerisi >= 5 ? 'text-red-600' : 'text-slate-900'}`}>{result.sarsintiVerisi}G {result.sarsintiVerisi >= 5 ? '⚠️' : ''}</span>
+                  </div>
+                )}
+                {result.txHash && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-slate-600">Blockchain Mühür</span>
+                    <span className="font-bold text-indigo-600 text-xs">✓ Kayıtlı</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
+  );
 };
 
 const exportPDF = (cargo, innerAnalysis, verdict) => {
@@ -85,7 +457,9 @@ const toTRTime = (str) => {
 };
 
 export default function CargoDashboard() {
-  const [dark, setDark] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState('admin');
+  const [dark, setDark] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -207,6 +581,12 @@ export default function CargoDashboard() {
     innerImageBg: dark ? "bg-[#060B14]" : "bg-slate-100"
   };
 
+  if (!isAuthenticated) {
+    return <EnterpriseLogin onLogin={(role) => { setUserRole(role); setIsAuthenticated(true); }} />;
+  }
+  if (userRole === 'kurye') return <KuryeView onLogout={() => setIsAuthenticated(false)} />;
+  if (userRole === 'musteri') return <MusteriView onLogout={() => setIsAuthenticated(false)} />;
+
   return (
     <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 ${t.textMain}`}>
       
@@ -246,6 +626,12 @@ export default function CargoDashboard() {
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all duration-300 ${t.blueBadge}`}>
               <Icons.Refresh className="w-4 h-4" />
               <span className="hidden sm:inline">Senkronize Et</span>
+            </button>
+
+            <button onClick={() => setIsAuthenticated(false)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${t.buttonBg} text-red-500 hover:bg-red-500/10`}>
+              <Icons.Logout className="w-4 h-4" />
+              <span className="hidden sm:inline">Çıkış Yap</span>
             </button>
           </div>
         </div>

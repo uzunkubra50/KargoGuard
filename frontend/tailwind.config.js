@@ -11,6 +11,8 @@ export default {
         sans: ['"Outfit"', 'sans-serif'],
       },
       colors: {
+        arasRed: '#E4002B',
+        arasBlue: '#002E6D',
         theme: {
           bg: 'var(--bg-app)',
           text: 'var(--text-main)',
