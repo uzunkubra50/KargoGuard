@@ -1,167 +1,174 @@
 <div align="center">
-  <h1>KargoGuard</h1>
-  <p><strong>Yapay Zeka Destekli Akıllı Kargo Güvenlik ve Takip Platformu</strong></p>
+
+<p><a href="./README.md">🇬🇧 English</a> &nbsp;|&nbsp; <a href="./README.tr.md">🇹🇷 Türkçe</a></p>
+
+<img src="https://img.shields.io/badge/KargoGuard-AI%20Cargo%20Security-002E6D?style=for-the-badge&logo=shield&logoColor=white" alt="KargoGuard" height="40"/>
+
+<br/>
+<br/>
+
+**AI-powered cargo damage detection platform with blockchain-verified proof of condition.**  
+*Real-time analysis · Immutable records · Multi-role access*
+
+<br/>
+
+![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
+![Python](https://img.shields.io/badge/Python_3.10-3776AB?style=flat-square&logo=python&logoColor=white)
+![React](https://img.shields.io/badge/React_18-61DAFB?style=flat-square&logo=react&logoColor=black)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_15-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
+![Ethereum](https://img.shields.io/badge/Ethereum_Sepolia-3C3C3D?style=flat-square&logo=ethereum&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)
+
 </div>
 
-<br />
-
-KargoGuard, kargo taşıma süreçlerindeki hasarları yapay zeka ile tespit eden, Web3 teknolojileri ile şeffaf takip sağlayan ve kargo güvenliğini en üst düzeye çıkaran modern bir platformdur.
-
 ---
 
-## Öne Çıkan Özellikler
+## Overview
 
-- **Yapay Zeka Destekli Hasar Tespiti** — Kargo fotoğrafları çekilir çekilmez YOLOv8 + Gemini ile analiz edilir.
-- **Web3 ve Akıllı Kontratlar** — Kargo durumları Ethereum Sepolia üzerinde değiştirilemez şekilde kayıt altına alınır.
-- **Gerçek Zamanlı Dashboard** — Admin panelinden tüm kargolar, hasar oranları ve sistem durumu anlık izlenir.
-- **Mobil Uygulama** — Kuryeler ve müşteriler için React Native tabanlı saha uygulaması.
-- **Mikroservis Mimarisi** — RabbitMQ tabanlı asenkron işlem hattı.
+KargoGuard combines computer vision, IoT sensor data, and blockchain technology to eliminate disputes in cargo logistics. Every package is analyzed at pickup and delivery — damage is detected automatically, liability is determined instantly, and the result is written immutably to Ethereum.
 
----
-
-## Sistem Mimarisi
-
-```
-frontend (React/Vite :5173)
-        │
-        ▼ REST + JWT
-backend/KargoGuard.API (.NET 10 :5229)
-        │                │
-        ▼ RabbitMQ       ▼ Dapper
-backend/KargoGuard.AI   PostgreSQL (:5432)
-  (Python, YOLOv8 +     MinIO (:9000)
-   Gemini)
-```
-
-| Katman | Teknoloji |
+| Without KargoGuard | With KargoGuard |
 |---|---|
-| Backend API | C# .NET 10 |
-| Yapay Zeka | Python, YOLOv8, Roboflow, Google Gemini |
-| Frontend | React 18, Vite, TailwindCSS |
-| Mobil | React Native / Expo |
-| Veritabanı | PostgreSQL 15 |
-| Mesaj Kuyruğu | RabbitMQ 3 |
-| Dosya Depolama | MinIO |
-| Blockchain | Solidity, Hardhat, Ethereum Sepolia |
+| Manual damage inspection | AI analysis in seconds |
+| He-said-she-said disputes | Blockchain-verified proof |
+| Paper trail gets lost | Permanent on-chain record |
+| Delayed liability decisions | Instant automated verdict |
 
 ---
 
-## Gereksinimler
+## Features
 
-Başlamadan önce aşağıdaki araçların kurulu olması gerekmektedir:
+**AI Damage Detection**  
+YOLOv8 object detection paired with Google Gemini vision analysis classifies damage type, severity, and location from a single photo.
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (çalışır durumda olmalı)
+**Blockchain Audit Trail**  
+Every analysis result is hashed and recorded on Ethereum Sepolia via a Solidity smart contract. Records are publicly verifiable on Etherscan — no one can alter them after the fact.
+
+**Asynchronous Processing Pipeline**  
+C# API publishes jobs to RabbitMQ. Python AI worker consumes and processes them independently, enabling the system to handle high volume without blocking the API.
+
+**Multi-Role Access**  
+Three distinct roles — Admin (full dashboard), Courier (field operations via mobile), Customer (self-service cargo tracking) — each with scoped JWT permissions.
+
+**IoT Sensor Integration**  
+G-Force sensor data captured at the moment of impact is stored alongside the photo analysis, providing physical evidence to complement the visual record.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        CLIENT LAYER                         │
+│  React Dashboard (:5173)          React Native Mobile App   │
+└────────────────────┬────────────────────────────────────────┘
+                     │ REST + JWT
+┌────────────────────▼────────────────────────────────────────┐
+│                    KargoGuard.API  (:5229)                   │
+│              C# .NET 10  ·  Dapper  ·  Swagger              │
+└──────┬────────────────────────────────────┬─────────────────┘
+       │ AMQP                               │ SQL / S3
+┌──────▼──────────┐              ┌──────────▼──────────────────┐
+│  KargoGuard.AI  │              │  PostgreSQL  │  MinIO        │
+│  Python Worker  │              │  (records)   │  (images)     │
+│  YOLOv8 + Gemini│              └─────────────────────────────┘
+└──────┬──────────┘
+       │ JSON-RPC
+┌──────▼──────────┐
+│    Ethereum     │
+│  Sepolia Testnet│
+│  Smart Contract │
+└─────────────────┘
+```
+
+| Layer | Technology |
+|---|---|
+| Backend API | C# .NET 10, Dapper, JWT Bearer, Swashbuckle |
+| AI Worker | Python 3.10, YOLOv8, Roboflow, Google Gemini 2.5 Flash |
+| Frontend | React 18, Vite, TailwindCSS, Recharts |
+| Mobile | React Native, Expo |
+| Message Queue | RabbitMQ 3 |
+| Database | PostgreSQL 15 |
+| Object Storage | MinIO (S3-compatible) |
+| Blockchain | Solidity, Hardhat, Nethereum, Ethereum Sepolia |
+| Infrastructure | Docker Compose |
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) — running
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
 - [Python 3.10+](https://www.python.org/downloads/)
 - [Node.js 18+](https://nodejs.org/)
 
----
+### Quick Start (Windows)
 
-## Kurulum ve Başlatma
-
-Proje kök dizinindeki `start-all.bat` dosyasını çalıştırın. Tüm servisler otomatik sırayla başlar.
-
-```
+```bash
 start-all.bat
 ```
 
-Servisleri tek tek başlatmak isterseniz her adımı **ayrı bir terminal penceresinde** çalıştırın.
+This script starts all four services in order: Docker infrastructure → .NET API → Python AI worker → React dashboard.
 
-#### 1. Altyapı Servisleri (Docker)
+### Manual Start
 
+Run each step in a separate terminal window.
+
+**1. Infrastructure**
 ```bash
 docker-compose up -d
 ```
 
-Bu komut PostgreSQL, RabbitMQ ve MinIO konteynerlerini arka planda başlatır.
-
-Başarı kontrolü:
-
-```bash
-docker ps
-```
-
-Üç konteynerin (kargoguard-postgres, kargoguard-rabbitmq, kargoguard-minio) `Up` durumunda olması gerekir.
-
-#### 2. Backend API (C# .NET)
-
+**2. API**
 ```bash
 cd backend/KargoGuard.API
 dotnet run
 ```
 
-API `http://localhost:5229` adresinde çalışmaya başlar.  
-Swagger: `http://localhost:5229/swagger`
-
-#### 3. Yapay Zeka Servisi (Python)
-
+**3. AI Worker**
 ```bash
 cd backend/KargoGuard.AI
 venv\Scripts\python.exe consumer.py
 ```
+> First time: `python -m venv venv && venv\Scripts\pip install -r requirements.txt`
 
-Servis RabbitMQ kuyruğunu dinlemeye başlar. "Waiting for messages..." mesajı görünmesi beklenir.
-
-> **Not:** İlk kurulumda sanal ortam oluşturmak için:
-> ```bash
-> cd backend/KargoGuard.AI
-> python -m venv venv
-> venv\Scripts\pip install -r requirements.txt
-> ```
-
-#### 4. Frontend Dashboard (React)
-
+**4. Dashboard**
 ```bash
 cd frontend
-npm install    # ilk kurulumda
-npm run dev
+npm install && npm run dev
 ```
 
-Dashboard `http://localhost:5173` adresinde açılır.
+Once all services are up, open **http://localhost:5173**.
 
 ---
 
-## Giriş Bilgileri
+## Project Structure
 
-| Kullanıcı | Şifre | Rol |
-|---|---|---|
-| `admin@kargoguard.com` | `admin123` | Admin (yönetim paneli) |
-| `KRY-00142` | `kurye123` | Kurye |
-| `KRY-00215` | `kurye123` | Kurye |
-
----
-
-## Servis Adresleri
-
-| Servis | Adres | Açıklama |
-|---|---|---|
-| Frontend Dashboard | http://localhost:5173 | Ana yönetim paneli |
-| Backend API | http://localhost:5229 | REST API |
-| Swagger UI | http://localhost:5229/swagger | API dokümantasyonu |
-| MinIO Konsolu | http://localhost:9001 | Fotoğraf yönetimi |
-| RabbitMQ Yönetimi | http://localhost:15672 | Mesaj kuyruğu izleme |
-
-MinIO ve RabbitMQ için giriş: `kargo_admin` / `kargo_password`
-
----
-
-## Sorun Giderme
-
-**"Veri gelmiyor / 0 kayıt"**  
-→ Docker servislerinin çalıştığını `docker ps` ile doğrulayın.  
-→ API'nin `http://localhost:5229/swagger` adresinde açıldığını kontrol edin.
-
-**"Şifre yanlış" / Giriş yapılamıyor**  
-→ Tarayıcı konsolunda `localStorage.clear(); location.reload();` çalıştırın.
-
-**"Port kullanımda" hatası**  
-→ `start-all.bat` yerine servisleri tek tek başlatın ve hangi servisin çakıştığını bulun.
-
-**Python "ModuleNotFoundError"**  
-→ `venv\Scripts\pip install -r requirements.txt` komutuyla bağımlılıkları yükleyin.
+```
+KargoGuard/
+├── backend/
+│   ├── KargoGuard.API/          # C# .NET Web API
+│   │   ├── Controllers/         # AuthController, CargoController
+│   │   ├── Services/            # Auth, Blockchain, MinIO, RabbitMQ, DB
+│   │   └── Models/
+│   └── KargoGuard.AI/           # Python AI worker
+│       ├── consumer.py          # RabbitMQ consumer + inference pipeline
+│       └── yolov8n.pt           # YOLOv8 model weights
+├── frontend/                    # React dashboard
+│   └── src/
+│       ├── App.jsx              # Auth + role routing
+│       └── CargoDashboard.jsx   # Admin panel
+├── mobile/                      # React Native app (Expo)
+├── web3/                        # Solidity smart contract + Hardhat
+│   └── contracts/CargoGuard.sol
+└── docker-compose.yml           # PostgreSQL · RabbitMQ · MinIO
+```
 
 ---
 
 <div align="center">
-  <p>Geliştirici: <b>Kübra Uzun</b></p>
+  <sub>Built by <a href="https://github.com/uzunkubra50"><b>Kübra Uzun</b></a></sub>
 </div>
