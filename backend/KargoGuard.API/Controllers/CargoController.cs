@@ -1,5 +1,6 @@
 using KargoGuard.API.Models;
 using KargoGuard.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Dapper;
 using Npgsql;
@@ -38,6 +39,7 @@ public class CargoController : ControllerBase
     /// <param name="file">Yüklenecek görsel dosyası (multipart/form-data)</param>
     /// <param name="cancellationToken">İptal jetonu</param>
     /// <returns>200 OK — MinIO'daki dosya adı ve kuyruk durumu</returns>
+    [Authorize(Roles = "admin")]
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
@@ -97,6 +99,7 @@ public class CargoController : ControllerBase
     /// <summary>
     /// Kargo teslimat anında fotoğraf çekerek AI onayından geçirir.
     /// </summary>
+    [Authorize(Roles = "admin,kurye")]
     [HttpPost("confirm-delivery")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
@@ -138,6 +141,7 @@ public class CargoController : ControllerBase
     /// <summary>
     /// PostgreSQL veritabanından son 10 analizi listeler (En yeni en üstte).
     /// </summary>
+    [Authorize]
     [HttpGet("results")]
     [ProducesResponseType(typeof(IEnumerable<CargoAnalysisResult>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
@@ -278,6 +282,7 @@ public class CargoController : ControllerBase
             """;
     }
 
+    [Authorize(Roles = "admin")]
     [HttpGet("debug/{cargoId}")]
     public async Task<IActionResult> DebugRow(int cargoId)
     {
@@ -303,6 +308,7 @@ public class CargoController : ControllerBase
     /// Artık hiçbir AI çağrısı yapmaz — consumer.py zaten analiz etti ve DB'ye yazdı.
     /// Sadece DB'deki mevcut sonucu döndürür.
     /// </summary>
+    [Authorize]
     [HttpGet("analyze-inner/{cargoId}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -350,6 +356,7 @@ public class CargoController : ControllerBase
         }
     }
 
+    [Authorize]
     [HttpPost("customer-upload")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]

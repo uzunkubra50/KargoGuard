@@ -55,16 +55,20 @@ TemporaryDependencyNodeTargetIdentifier=net10.0
 /warnaserror+:NU1605,SYSLIB0011
 
 [sourceFiles]
-Controllers/CargoController.cs
+Controllers/
+ AuthController.cs
+ CargoController.cs
 Models/
  BlockchainSyncRequest.cs
  CargoAnalysisResult.cs
+ LoginRequest.cs
 obj/Debug/net10.0/
  .NETCoreApp,Version=v10.0.AssemblyAttributes.cs
  KargoGuard.API.AssemblyInfo.cs
  KargoGuard.API.GlobalUsings.g.cs
 Program.cs
 Services/
+ AuthService.cs
  BlockchainService.cs
  DatabaseInitializer.cs
  MinioService.cs
@@ -382,12 +386,20 @@ Services/
  WindowsBase.dll
 <NUGET>/
  adraffy.ensnormalize/0.3.1/lib/net5.0/ADRaffy.ENSNormalize.dll
+ bcrypt.net-next/4.0.3/lib/net6.0/BCrypt.Net-Next.dll
  bouncycastle.cryptography/2.5.1/lib/net6.0/BouncyCastle.Cryptography.dll
  communitytoolkit.highperformance/8.4.0/lib/net8.0/CommunityToolkit.HighPerformance.dll
  dapper/2.1.72/lib/net10.0/Dapper.dll
+ microsoft.aspnetcore.authentication.jwtbearer/10.0.0/lib/net10.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
  microsoft.entityframeworkcore.abstractions/10.0.6/lib/net10.0/Microsoft.EntityFrameworkCore.Abstractions.dll
  microsoft.entityframeworkcore.relational/10.0.6/lib/net10.0/Microsoft.EntityFrameworkCore.Relational.dll
  microsoft.entityframeworkcore/10.0.6/lib/net10.0/Microsoft.EntityFrameworkCore.dll
+ microsoft.identitymodel.abstractions/8.0.1/lib/net9.0/Microsoft.IdentityModel.Abstractions.dll
+ microsoft.identitymodel.jsonwebtokens/8.0.1/lib/net9.0/Microsoft.IdentityModel.JsonWebTokens.dll
+ microsoft.identitymodel.logging/8.0.1/lib/net9.0/Microsoft.IdentityModel.Logging.dll
+ microsoft.identitymodel.protocols.openidconnect/8.0.1/lib/net9.0/Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+ microsoft.identitymodel.protocols/8.0.1/lib/net9.0/Microsoft.IdentityModel.Protocols.dll
+ microsoft.identitymodel.tokens/8.0.1/lib/net9.0/Microsoft.IdentityModel.Tokens.dll
  microsoft.openapi/2.4.1/lib/net8.0/Microsoft.OpenApi.dll
  minio/7.0.0/lib/net8.0/Minio.dll
  nbitcoin.secp256k1/3.1.1/lib/net6.0/NBitcoin.Secp256k1.dll
@@ -415,6 +427,7 @@ Services/
  swashbuckle.aspnetcore.swagger/10.1.7/lib/net10.0/Swashbuckle.AspNetCore.Swagger.dll
  swashbuckle.aspnetcore.swaggergen/10.1.7/lib/net10.0/Swashbuckle.AspNetCore.SwaggerGen.dll
  swashbuckle.aspnetcore.swaggerui/10.1.7/lib/net10.0/Swashbuckle.AspNetCore.SwaggerUI.dll
+ system.identitymodel.tokens.jwt/8.0.1/lib/net9.0/System.IdentityModel.Tokens.Jwt.dll
  system.io.hashing/9.0.4/lib/net9.0/System.IO.Hashing.dll
  system.reactive/6.0.1/lib/net6.0/System.Reactive.dll
 

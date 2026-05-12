@@ -35,6 +35,12 @@ const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }
   </div>
 );
 
+const API = 'http://localhost:5229';
+
+const authHeaders = () => ({
+  'Authorization': `Bearer ${localStorage.getItem('kg_token') ?? ''}`
+});
+
 const EnterpriseLogin = ({ onLogin }) => {
   const [loadingRole, setLoadingRole] = useState(null);
   const [role, setRole]               = useState('admin');
@@ -44,11 +50,47 @@ const EnterpriseLogin = ({ onLogin }) => {
   const [kuryePwd, setKuryePwd]       = useState('');
   const [trackCode, setTrackCode]     = useState('');
   const [trackPhone, setTrackPhone]   = useState('');
+  const [loginError, setLoginError]   = useState('');
 
-  const login = (e) => {
+  const login = async (e) => {
     e?.preventDefault();
     setLoadingRole(role);
-    setTimeout(() => onLogin(role), 1500);
+    setLoginError('');
+
+    try {
+      let res;
+      if (role === 'musteri') {
+        res = await fetch(`${API}/api/auth/tracking-access`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ trackCode: trackCode || 'MISAFIR', phone: trackPhone }),
+        });
+      } else {
+        const username = role === 'admin' ? adminEmail : kuryeId;
+        const password = role === 'admin' ? adminPwd   : kuryePwd;
+        res = await fetch(`${API}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setLoginError(err.message || 'Kullanıcı adı veya şifre hatalı.');
+        setLoadingRole(null);
+        return;
+      }
+
+      const data = await res.json();
+      localStorage.setItem('kg_token', data.token);
+      localStorage.setItem('kg_role',  data.role);
+      localStorage.setItem('kg_user',  data.username ?? '');
+      onLogin(data.role, data.username ?? '');
+    } catch {
+      setLoginError('Sunucuya bağlanılamadı. API çalışıyor mu?');
+      setLoadingRole(null);
+    }
   };
 
   const ROLES = [
@@ -207,6 +249,11 @@ const EnterpriseLogin = ({ onLogin }) => {
               <RightForm />
             </div>
 
+            {loginError && (
+              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-600 font-semibold text-center">
+                {loginError}
+              </div>
+            )}
             <p className="text-center text-[10px] text-slate-400 mt-6">🔒 256-bit SSL · ISO 27001 uyumlu</p>
           </div>
         </div>
@@ -243,7 +290,7 @@ const KuryeView = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   // Demo: Kurye sadece tek sayılı ID'lere sahip kargoları görür
   useEffect(() => {
-    fetch('http://localhost:5229/api/cargo/results')
+    fetch(`${API}/api/cargo/results`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => { setCargos(data.filter(c => c.id % 2 !== 0)); setLoading(false); })
       .catch(() => setLoading(false));
@@ -318,7 +365,7 @@ const MusteriView = ({ onLogout }) => {
     if (!query.trim()) return;
     setSearching(true); setResult(null); setNotFound(false);
     try {
-      const r = await fetch('http://localhost:5229/api/cargo/results');
+      const r = await fetch(`${API}/api/cargo/results`, { headers: authHeaders() });
       const data = await r.json();
       const found = data.find(c => String(c.id) === query.trim());
       if (found) setResult(found);
@@ -457,8 +504,9 @@ const toTRTime = (str) => {
 };
 
 export default function CargoDashboard() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState('admin');
+  const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('kg_token'));
+  const [userRole, setUserRole] = useState(() => localStorage.getItem('kg_role') || 'admin');
+  const [userName, setUserName] = useState(() => localStorage.getItem('kg_user') || '');
   const [dark, setDark] = useState(false);
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -467,6 +515,13 @@ export default function CargoDashboard() {
   const [selectedCargo, setSelectedCargo] = useState(null);
   const [innerAnalysis, setInnerAnalysis] = useState(null);
   const [innerLoading, setInnerLoading] = useState(false);
+
+  const handleLogout = () => {
+    localStorage.removeItem('kg_token');
+    localStorage.removeItem('kg_role');
+    localStorage.removeItem('kg_user');
+    setIsAuthenticated(false);
+  };
 
   useEffect(() => {
     if (dark) {
@@ -479,7 +534,8 @@ export default function CargoDashboard() {
   const fetchResults = async () => {
     setLoading(true); setError(null);
     try {
-      const r = await fetch("http://localhost:5229/api/cargo/results");
+      const r = await fetch(`${API}/api/cargo/results`, { headers: authHeaders() });
+      if (r.status === 401) { handleLogout(); return; }
       if (!r.ok) throw new Error("API'den veri alınamadı.");
       setResults(await r.json());
     } catch (e) { setError(e.message); }
@@ -492,7 +548,7 @@ export default function CargoDashboard() {
     (async () => {
       setInnerLoading(true); setInnerAnalysis(null);
       try {
-        const r = await fetch(`http://localhost:5229/api/cargo/analyze-inner/${selectedCargo.id}`);
+        const r = await fetch(`${API}/api/cargo/analyze-inner/${selectedCargo.id}`, { headers: authHeaders() });
         setInnerAnalysis(await r.json());
       } catch { setInnerAnalysis({ error: true }); }
       finally { setInnerLoading(false); }
@@ -503,7 +559,8 @@ export default function CargoDashboard() {
     const total = results.length;
     const damaged = results.filter(r => r.finalDecision === "HASARLI").length;
     const blockchain = results.filter(r => r.txHash).length;
-    return { total, damaged, safe: total - damaged, rate: total > 0 ? ((damaged / total) * 100).toFixed(1) : 0, blockchain };
+    const securityBreaches = results.filter(r => r.securityBreach).length;
+    return { total, damaged, safe: total - damaged, rate: total > 0 ? ((damaged / total) * 100).toFixed(1) : 0, blockchain, securityBreaches };
   }, [results]);
 
   const filtered = useMemo(() =>
@@ -582,13 +639,13 @@ export default function CargoDashboard() {
   };
 
   if (!isAuthenticated) {
-    return <EnterpriseLogin onLogin={(role) => { setUserRole(role); setIsAuthenticated(true); }} />;
+    return <EnterpriseLogin onLogin={(role, user) => { setUserRole(role); setUserName(user || ''); setIsAuthenticated(true); }} />;
   }
-  if (userRole === 'kurye') return <KuryeView onLogout={() => setIsAuthenticated(false)} />;
-  if (userRole === 'musteri') return <MusteriView onLogout={() => setIsAuthenticated(false)} />;
+  if (userRole === 'kurye') return <KuryeView onLogout={handleLogout} />;
+  if (userRole === 'musteri') return <MusteriView onLogout={handleLogout} />;
 
   return (
-    <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 ${t.textMain}`}>
+    <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 ${t.bg} ${t.textMain}`}>
       
       {/* Abstract Glowing Backgrounds */}
       <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 rounded-full blur-[120px] mix-blend-screen animate-pulse-slow pointer-events-none ${dark ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`} />
@@ -628,7 +685,15 @@ export default function CargoDashboard() {
               <span className="hidden sm:inline">Senkronize Et</span>
             </button>
 
-            <button onClick={() => setIsAuthenticated(false)}
+            {userName && (
+              <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${t.buttonBg}`}>
+                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center text-white text-[10px] font-black shrink-0">
+                  {userName[0]?.toUpperCase()}
+                </div>
+                <span className={`max-w-[140px] truncate ${t.textMuted}`}>{userName}</span>
+              </div>
+            )}
+            <button onClick={handleLogout}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-300 ${t.buttonBg} text-red-500 hover:bg-red-500/10`}>
               <Icons.Logout className="w-4 h-4" />
               <span className="hidden sm:inline">Çıkış Yap</span>
@@ -641,6 +706,7 @@ export default function CargoDashboard() {
         
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
           <div>
+            {userName && <p className={`text-xs font-semibold mb-1 ${t.textMuted}`}>Merhaba, {userName}</p>}
             <h2 className="text-3xl font-black tracking-tight">Yapay Zeka Analiz Paneli</h2>
             <p className={`text-sm mt-1 font-medium flex items-center gap-2 ${t.textMuted}`}>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -649,60 +715,72 @@ export default function CargoDashboard() {
           </div>
         </div>
 
-        {/* ══════ STAT CARDS ══════ */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* ══════ STAT CARDS + GENEL DURUM ══════ */}
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
-            { label: "Toplam Analiz", value: stats.total, icon: Icons.Box, color: dark ? "from-blue-500/20 to-cyan-500/5" : "from-blue-500/10 to-cyan-500/5", text: dark ? "text-blue-400" : "text-blue-600" },
-            { label: "Hasarlı Tespit", value: stats.damaged, icon: Icons.Warning, color: dark ? "from-red-500/20 to-orange-500/5" : "from-red-500/10 to-orange-500/5", text: dark ? "text-red-400" : "text-red-600" },
-            { label: "Kusursuz Teslimat", value: stats.safe, icon: Icons.Shield, color: dark ? "from-emerald-500/20 to-teal-500/5" : "from-emerald-500/10 to-teal-500/5", text: dark ? "text-emerald-400" : "text-emerald-600" },
-            { label: "Blockchain Mühürlü", value: stats.blockchain, icon: Icons.Link, color: dark ? "from-violet-500/20 to-purple-500/5" : "from-violet-500/10 to-purple-500/5", text: dark ? "text-violet-400" : "text-violet-600" }
+            { label: "Toplam Analiz",     value: stats.total,      icon: Icons.Box,     accent: dark ? "#3b82f6" : "#2563eb",   bg: dark ? "bg-blue-500/10"    : "bg-blue-50",    text: dark ? "text-blue-400"    : "text-blue-600" },
+            { label: "Hasarlı Tespit",    value: stats.damaged,    icon: Icons.Warning, accent: dark ? "#f87171" : "#dc2626",   bg: dark ? "bg-red-500/10"     : "bg-red-50",     text: dark ? "text-red-400"     : "text-red-600" },
+            { label: "Kusursuz Teslimat", value: stats.safe,       icon: Icons.Shield,  accent: dark ? "#34d399" : "#059669",   bg: dark ? "bg-emerald-500/10" : "bg-emerald-50", text: dark ? "text-emerald-400" : "text-emerald-600" },
+            { label: "Blockchain Mühürlü",value: stats.blockchain, icon: Icons.Link,    accent: dark ? "#a78bfa" : "#7c3aed",   bg: dark ? "bg-violet-500/10"  : "bg-violet-50",  text: dark ? "text-violet-400"  : "text-violet-600" },
           ].map((s, i) => (
-            <div key={i} className={`rounded-2xl p-6 relative overflow-hidden group shadow-sm backdrop-blur-md ${t.glassCard}`}>
-              <div className={`absolute inset-0 bg-gradient-to-br ${s.color} opacity-50 group-hover:opacity-100 transition-opacity duration-500`} />
-              <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${s.color} rounded-full blur-[20px]`} />
-              
-              <div className="relative z-10">
-                <div className="flex justify-between items-start mb-4">
-                  <p className={`text-xs font-bold uppercase tracking-widest ${t.textMuted}`}>{s.label}</p>
-                  <s.icon className={`w-5 h-5 ${s.text}`} />
+            <div key={i} className={`rounded-2xl p-5 relative overflow-hidden group shadow-sm backdrop-blur-md border ${t.glassCard}`}
+              style={{ borderLeft: `3px solid ${s.accent}` }}>
+              <div className="flex flex-col gap-4">
+                <div className="flex justify-between items-center">
+                  <p className={`text-[10px] font-bold uppercase tracking-widest ${t.textMuted}`}>{s.label}</p>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${s.bg}`}>
+                    <s.icon className={`w-4 h-4 ${s.text}`} />
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2">
-                  <h3 className={`text-4xl font-black ${s.text} drop-shadow-sm`}>{s.value}</h3>
-                  {i === 1 && stats.total > 0 && <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${t.redBadge}`}>%{(stats.damaged/stats.total*100).toFixed(1)}</span>}
+                <div>
+                  <h3 className={`text-4xl font-black ${s.text}`}>{s.value}</h3>
+                  {i === 1 && stats.total > 0 && (
+                    <div className="mt-2">
+                      <div className="flex justify-between mb-1">
+                        <span className={`text-[9px] font-medium ${t.textMuted}`}>Hasar oranı</span>
+                        <span className={`text-[9px] font-bold ${s.text}`}>%{(stats.damaged/stats.total*100).toFixed(1)}</span>
+                      </div>
+                      <div className={`h-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                        <div className="h-1 rounded-full bg-red-500 transition-all duration-700" style={{ width: `${(stats.damaged/stats.total*100)}%` }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           ))}
-        </div>
 
-        {/* ══════ MAIN CONTENT AREA ══════ */}
-        <div className="grid grid-cols-1 xl:grid-cols-[280px_1fr] gap-6">
-          
-          <div className={`rounded-2xl p-6 flex flex-col items-center justify-center relative overflow-hidden shadow-sm backdrop-blur-md ${t.glassCard}`}>
-            <h3 className={`text-xs font-bold uppercase tracking-widest mb-6 absolute top-6 left-6 ${t.textMuted}`}>Genel Durum</h3>
-            <div className="w-full h-48 mt-6">
+          {/* 5. kart — mini donut chart */}
+          <div className={`col-span-2 lg:col-span-1 rounded-2xl p-5 relative overflow-hidden shadow-sm backdrop-blur-md border ${t.glassCard}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${t.textMuted}`}>Genel Durum</p>
+            <div className="h-[90px]">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie dataKey="value" data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={5} stroke="none" cornerRadius={4}>
-                    {pieData.map((e, i) => <Cell key={i} fill={e.color} className="drop-shadow-md" />)}
+                  <Pie dataKey="value" data={pieData} cx="50%" cy="50%" innerRadius={24} outerRadius={40} paddingAngle={5} stroke="none" cornerRadius={4}>
+                    {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ backgroundColor: dark ? '#0B1221' : '#ffffff', borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: '12px', color: dark ? '#fff' : '#0f172a' }} itemStyle={{color: dark ? '#fff' : '#0f172a'}} />
+                  <Tooltip contentStyle={{ backgroundColor: dark ? '#0B1221' : '#ffffff', borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: '10px', fontSize: '11px', color: dark ? '#fff' : '#0f172a' }} itemStyle={{color: dark ? '#fff' : '#0f172a'}} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            <div className={`flex w-full justify-between mt-4 px-4 border-t pt-4 ${t.tableBorder}`}>
-              <div className="text-center">
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>Sağlam</p>
-                <p className="text-xl font-black">{stats.safe}</p>
+            <div className={`flex justify-between pt-2 mt-1 border-t ${t.tableBorder}`}>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                <span className={`text-[10px] ${t.textMuted}`}>Sağlam</span>
+                <span className={`text-xs font-black ml-1 ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>{stats.safe}</span>
               </div>
-              <div className="text-center">
-                <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 ${dark ? 'text-red-400' : 'text-red-600'}`}>Hasarlı</p>
-                <p className="text-xl font-black">{stats.damaged}</p>
+              <div className="flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-red-400 shrink-0" />
+                <span className={`text-[10px] ${t.textMuted}`}>Hasarlı</span>
+                <span className={`text-xs font-black ml-1 ${dark ? 'text-red-400' : 'text-red-600'}`}>{stats.damaged}</span>
               </div>
             </div>
           </div>
+        </div>
 
-          <div className={`rounded-2xl overflow-hidden flex flex-col shadow-sm backdrop-blur-md ${t.glassCard}`}>
+        {/* ══════ KARGO TABLOSU — TAM GENİŞLİK ══════ */}
+        <div className="flex flex-col gap-6">
+          <div className={`rounded-2xl overflow-hidden flex flex-col shadow-sm backdrop-blur-md border ${t.glassCard}`}>
             <div className={`px-6 py-5 border-b flex justify-between items-center ${t.tableBorder}`}>
               <h3 className="text-sm font-bold tracking-wide">Kargo Kayıtları</h3>
               <span className={`text-xs px-3 py-1 rounded-full border ${t.buttonBg}`}>{filtered.length} Sonuç</span>
@@ -731,6 +809,8 @@ export default function CargoDashboard() {
                       <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${t.textMuted}`}>IoT Sensör</th>
                       <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${t.textMuted}`}>Yapay Zeka Skoru</th>
                       <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${t.textMuted}`}>Karar Motoru</th>
+                      <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${t.textMuted}`}>Durum</th>
+                      <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap ${t.textMuted}`}>Tarih</th>
                       <th className={`py-4 px-6 text-[10px] font-bold uppercase tracking-widest whitespace-nowrap text-right ${t.textMuted}`}>İşlem</th>
                     </tr>
                   </thead>
@@ -782,6 +862,24 @@ export default function CargoDashboard() {
                               {dmg ? <Icons.Warning className="w-3 h-3"/> : <Icons.Check className="w-3 h-3"/>}
                               {cStat.text}
                             </span>
+                          </td>
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            <div className="flex flex-col gap-1">
+                              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                                item.status === 'Teslim Edildi' ? t.greenBadge :
+                                item.status === 'İptal' ? t.redBadge : t.blueBadge
+                              }`}>
+                                {item.status || 'Yolda'}
+                              </span>
+                              {item.securityBreach && (
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border ${dark ? 'bg-red-600/20 text-red-300 border-red-500/40' : 'bg-red-100 text-red-700 border-red-300'}`}>
+                                  ⚠ Güvenlik İhlali
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 whitespace-nowrap">
+                            <span className={`text-xs ${t.textMuted}`}>{toTRDate(item.processedAt)}</span>
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap text-right">
                             <button onClick={() => setSelectedCargo(item)}
@@ -909,6 +1007,23 @@ export default function CargoDashboard() {
                             {isGeminiUnavailable ? "MANUEL İNCELEME" : (isInnerDmg ? "HASARLI İÇERİK" : "SAĞLAM İÇERİK")}
                           </span>
                           <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Güven Skoru: <span className={`font-bold ${isGeminiUnavailable ? 'text-orange-500' : t.textMain}`}>{isGeminiUnavailable ? "HATA" : pct(deliveryConf)}</span></p>
+                          {selectedCargo.geminiHasarTuru && (
+                            <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
+                              <div className="flex justify-between text-[10px]">
+                                <span className={t.textMuted}>Hasar Türü</span>
+                                <span className={`font-bold ${t.textMain}`}>{selectedCargo.geminiHasarTuru}</span>
+                              </div>
+                              {selectedCargo.geminiSiddet && (
+                                <div className="flex justify-between text-[10px]">
+                                  <span className={t.textMuted}>Şiddet</span>
+                                  <span className={`font-black ${(() => { const s = (selectedCargo.geminiSiddet || '').toLowerCase(); return ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k)) ? 'text-red-500' : ['orta','medium','moderate','minor','hafif'].some(k => s.includes(k)) ? 'text-orange-500' : 'text-emerald-500'; })()}`}>{selectedCargo.geminiSiddet}</span>
+                                </div>
+                              )}
+                              {selectedCargo.geminiAciklama && (
+                                <p className={`text-[10px] leading-relaxed ${t.textMuted}`}>{selectedCargo.geminiAciklama}</p>
+                              )}
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -926,6 +1041,11 @@ export default function CargoDashboard() {
                   <p className={`text-sm sm:text-base font-medium leading-relaxed ${anyDmg ? (dark ? 'text-red-300' : 'text-red-700') : (dark ? 'text-emerald-300' : 'text-emerald-700')}`}>
                     {verdict}
                   </p>
+                  {selectedCargo.liabilityNote && (
+                    <p className={`text-xs mt-2 italic border-t pt-2 ${t.tableBorder} ${t.textMuted}`}>
+                      📝 {selectedCargo.liabilityNote}
+                    </p>
+                  )}
                 </div>
                 <div className="shrink-0">
                   {selectedCargo.txHash ? (

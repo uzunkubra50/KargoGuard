@@ -19,6 +19,10 @@ __pycache__/
 venv/
 .env
 
+# .NET — yerel gizli ayarlar (gerçek değerler burada)
+appsettings.Development.json
+appsettings.*.local.json
+
 # Logs
 *.log
 api-run.err.log
