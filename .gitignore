@@ -30,3 +30,6 @@ api-run.out.log
 
 # Temp files
 temp_images/
+
+# Claude Code memory (local only)
+.claude/
