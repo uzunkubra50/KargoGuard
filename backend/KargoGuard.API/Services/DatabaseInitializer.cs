@@ -1,5 +1,6 @@
 using Dapper;
 using Npgsql;
+using BC = BCrypt.Net.BCrypt;
 
 namespace KargoGuard.API.Services;
 
@@ -82,6 +83,43 @@ public class DatabaseInitializer : IDatabaseInitializer
                 cancellationToken: cancellationToken));
         }
 
+        await connection.ExecuteAsync(new CommandDefinition("""
+            CREATE TABLE IF NOT EXISTS users (
+                id            SERIAL PRIMARY KEY,
+                username      TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                role          TEXT NOT NULL,
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """, cancellationToken: cancellationToken));
+
+        await SeedUsersAsync(connection, cancellationToken);
+
         _logger.LogInformation("PostgreSQL schema is ready.");
+    }
+
+    private static async Task SeedUsersAsync(Npgsql.NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        var seeds = new[]
+        {
+            ("admin@araskargo.com", "admin123", "admin"),
+            ("KRY-00142",           "kurye123", "kurye"),
+            ("KRY-00215",           "kurye123", "kurye"),
+        };
+
+        foreach (var (username, password, role) in seeds)
+        {
+            var hash = BC.HashPassword(password);
+            // UPSERT: varsa hash'i güncelle, yoksa oluştur
+            await connection.ExecuteAsync(
+                new CommandDefinition(
+                    """
+                    INSERT INTO users (username, password_hash, role)
+                    VALUES (@u, @h, @r)
+                    ON CONFLICT (username) DO UPDATE SET password_hash = @h, role = @r
+                    """,
+                    new { u = username, h = hash, r = role },
+                    cancellationToken: cancellationToken));
+        }
     }
 }

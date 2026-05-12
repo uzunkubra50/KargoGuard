@@ -11,42 +11,49 @@ from PIL import Image
 import time
 from tenacity import retry, wait_fixed, retry_if_result, stop_after_attempt
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv yüklü değilse sistem env var'larını kullan
+
 # ---------------------------------------------------------
 # RabbitMQ Ayarları
 # ---------------------------------------------------------
-RABBITMQ_HOST     = "localhost"
-RABBITMQ_PORT     = 5672
-RABBITMQ_USERNAME = "kargo_admin"
-RABBITMQ_PASSWORD = "kargo_password"
+RABBITMQ_HOST     = os.getenv("RABBITMQ_HOST", "localhost")
+RABBITMQ_PORT     = int(os.getenv("RABBITMQ_PORT", "5672"))
+RABBITMQ_USERNAME = os.getenv("RABBITMQ_USERNAME", "")
+RABBITMQ_PASSWORD = os.getenv("RABBITMQ_PASSWORD", "")
 QUEUE_NAME        = "image_processing_queue"
 
 # ---------------------------------------------------------
 # PostgreSQL Ayarları
 # ---------------------------------------------------------
-DB_HOST     = "localhost"
-DB_PORT     = "5432"
-DB_USER     = "kargo_admin"
-DB_PASSWORD = "kargo_password"
-DB_NAME     = "kargoguard_db"
+DB_HOST     = os.getenv("DB_HOST", "localhost")
+DB_PORT     = os.getenv("DB_PORT", "5432")
+DB_USER     = os.getenv("DB_USER", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_NAME     = os.getenv("DB_NAME", "kargoguard_db")
 
 # ---------------------------------------------------------
 # MinIO Ayarları
 # ---------------------------------------------------------
-MINIO_ENDPOINT   = "localhost:9000"
-MINIO_ACCESS_KEY = "kargo_admin"
-MINIO_SECRET_KEY = "kargo_password"
-MINIO_BUCKET     = "kargo-images"
+MINIO_ENDPOINT   = os.getenv("MINIO_ENDPOINT", "localhost:9000")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "")
+MINIO_BUCKET     = os.getenv("MINIO_BUCKET", "kargo-images")
 TEMP_DIR         = "temp_images"
 
 # ---------------------------------------------------------
 # Roboflow — YOLO v2 (kutu / hasar sınıfları)
 # ---------------------------------------------------------
-ROBOFLOW_URL = "https://detect.roboflow.com/kargoguard-ai/2?api_key=ROBOFLOW_KEY_REMOVED"
+_ROBOFLOW_KEY = os.getenv("ROBOFLOW_API_KEY", "")
+ROBOFLOW_URL  = f"https://detect.roboflow.com/kargoguard-ai/2?api_key={_ROBOFLOW_KEY}"
 
 # ---------------------------------------------------------
 # Gemini Ayarları
 # ---------------------------------------------------------
-GEMINI_API_KEY = "GEMINI_API_KEY_REMOVED"
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 GEMINI_URL     = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
