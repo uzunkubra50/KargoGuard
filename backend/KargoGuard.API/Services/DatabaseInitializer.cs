@@ -102,7 +102,7 @@ public class DatabaseInitializer : IDatabaseInitializer
     {
         var seeds = new[]
         {
-            ("admin@araskargo.com", "admin123", "admin"),
+            ("admin@kargoguard.com", "admin123", "admin"),
             ("KRY-00142",           "kurye123", "kurye"),
             ("KRY-00215",           "kurye123", "kurye"),
         };

@@ -29,7 +29,7 @@ const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">{icon}</span>
       <input
         type={type} value={value} onChange={onChange} placeholder={placeholder}
-        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-arasBlue focus:bg-white focus:ring-2 focus:ring-arasBlue/10 transition"
+        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brandBlue focus:bg-white focus:ring-2 focus:ring-brandBlue/10 transition"
       />
     </div>
   </div>
@@ -105,9 +105,9 @@ const EnterpriseLogin = ({ onLogin }) => {
     { color: '#a78bfa', text: 'Etherscan üzerinde denetlenebilir kanıt' },
   ];
   const stats = [
-    { val: '10K+', label: 'Analiz edilen kargo' },
-    { val: '%99.1', label: 'Tespit doğruluğu' },
-    { val: '3x', label: 'Daha hızlı denetim' },
+    { val: 'AI', label: 'Destekli analiz' },
+    { val: 'Web3', label: 'Blockchain kanıtı' },
+    { val: 'IoT', label: 'Sensör entegrasyonu' },
   ];
 
   const activeRole = ROLES.find(r => r.key === role);
@@ -115,12 +115,8 @@ const EnterpriseLogin = ({ onLogin }) => {
   const RightForm = () => {
     if (role === 'admin') return (
       <form onSubmit={login} className="space-y-4">
-        <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@araskargo.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
+        <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@kargoguard.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
         <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} />
-        <button type="button" onClick={login}
-          className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-semibold flex items-center justify-center gap-2 hover:bg-slate-50 transition">
-          <Icons.Activity className="w-3.5 h-3.5" /> Kurumsal SSO ile giriş
-        </button>
         <button type="submit" disabled={!!loadingRole}
           className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
           style={{ background: '#1e293b', color: 'white' }}>
@@ -155,7 +151,7 @@ const EnterpriseLogin = ({ onLogin }) => {
           <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Takip Kodu</label>
           <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 text-center">
             <input type="text" value={trackCode} onChange={e => setTrackCode(e.target.value.toUpperCase())}
-              placeholder="ARS - 0000000"
+              placeholder="KRG - 0000000"
               className="w-full text-center text-lg font-mono font-black text-slate-900 bg-transparent outline-none placeholder-slate-300 tracking-widest"
             />
             <p className="text-[10px] text-slate-400 mt-1">Takip kodu gir</p>
@@ -254,7 +250,7 @@ const EnterpriseLogin = ({ onLogin }) => {
                 {loginError}
               </div>
             )}
-            <p className="text-center text-[10px] text-slate-400 mt-6">🔒 256-bit SSL · ISO 27001 uyumlu</p>
+            <p className="text-center text-[10px] text-slate-400 mt-6">🔒 JWT ile güvenli oturum · Blockchain ile şeffaf kayıt</p>
           </div>
         </div>
       </div>
@@ -288,11 +284,10 @@ const friendlyClass = (cls) => {
 const KuryeView = ({ onLogout }) => {
   const [cargos, setCargos] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Demo: Kurye sadece tek sayılı ID'lere sahip kargoları görür
   useEffect(() => {
     fetch(`${API}/api/cargo/results`, { headers: authHeaders() })
       .then(r => r.json())
-      .then(data => { setCargos(data.filter(c => c.id % 2 !== 0)); setLoading(false); })
+      .then(data => { setCargos(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, []);
 
