@@ -31,6 +31,14 @@ public class DatabaseInitializer : IDatabaseInitializer
         await connection.OpenAsync(cancellationToken);
 
         await connection.ExecuteAsync(new CommandDefinition("""
+            CREATE TABLE IF NOT EXISTS companies (
+                id         SERIAL PRIMARY KEY,
+                name       TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            """, cancellationToken: cancellationToken));
+
+        await connection.ExecuteAsync(new CommandDefinition("""
             CREATE TABLE IF NOT EXISTS cargo_analysis_results (
                 id                      SERIAL PRIMARY KEY,
                 image_name              TEXT NOT NULL,
@@ -73,7 +81,8 @@ public class DatabaseInitializer : IDatabaseInitializer
             ["gemini_aciklama"] = "TEXT",
             ["gemini_guven_skoru"] = "FLOAT",
             ["bbox_json"] = "TEXT",
-            ["security_breach"] = "BOOLEAN DEFAULT false"
+            ["security_breach"] = "BOOLEAN DEFAULT false",
+            ["company_id"]      = "INT REFERENCES companies(id)"
         };
 
         foreach (var (name, type) in columns)
@@ -93,32 +102,53 @@ public class DatabaseInitializer : IDatabaseInitializer
             );
             """, cancellationToken: cancellationToken));
 
+        await connection.ExecuteAsync(new CommandDefinition(
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS company_id INT REFERENCES companies(id);",
+            cancellationToken: cancellationToken));
+
+        // Şirketleri önce seed'le — FK update'lerinden önce kayıtların olması gerekiyor
+        await SeedCompaniesAsync(connection, cancellationToken);
+
+        // Mevcut kayıtları varsayılan şirkete ata
+        await connection.ExecuteAsync(new CommandDefinition(
+            "UPDATE cargo_analysis_results SET company_id = 1 WHERE company_id IS NULL;",
+            cancellationToken: cancellationToken));
+
         await SeedUsersAsync(connection, cancellationToken);
 
         _logger.LogInformation("PostgreSQL schema is ready.");
     }
 
-    private static async Task SeedUsersAsync(Npgsql.NpgsqlConnection connection, CancellationToken cancellationToken)
+    private static async Task SeedCompaniesAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
+    {
+        await connection.ExecuteAsync(new CommandDefinition("""
+            INSERT INTO companies (id, name) VALUES
+                (1, 'KargoGuard Demo A.Ş.'),
+                (2, 'Test Lojistik Ltd.')
+            ON CONFLICT DO NOTHING;
+            """, cancellationToken: cancellationToken));
+    }
+
+    private static async Task SeedUsersAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
         var seeds = new[]
         {
-            ("admin@kargoguard.com", "admin123", "admin"),
-            ("KRY-00142",           "kurye123", "kurye"),
-            ("KRY-00215",           "kurye123", "kurye"),
+            ("admin@kargoguard.com", "admin123", "admin", 1),
+            ("KRY-00142",           "kurye123", "kurye", 1),
+            ("KRY-00215",           "kurye123", "kurye", 1),
         };
 
-        foreach (var (username, password, role) in seeds)
+        foreach (var (username, password, role, companyId) in seeds)
         {
             var hash = BC.HashPassword(password);
-            // UPSERT: varsa hash'i güncelle, yoksa oluştur
             await connection.ExecuteAsync(
                 new CommandDefinition(
                     """
-                    INSERT INTO users (username, password_hash, role)
-                    VALUES (@u, @h, @r)
-                    ON CONFLICT (username) DO UPDATE SET password_hash = @h, role = @r
+                    INSERT INTO users (username, password_hash, role, company_id)
+                    VALUES (@u, @h, @r, @c)
+                    ON CONFLICT (username) DO UPDATE SET password_hash = @h, role = @r, company_id = @c
                     """,
-                    new { u = username, h = hash, r = role },
+                    new { u = username, h = hash, r = role, c = companyId },
                     cancellationToken: cancellationToken));
         }
     }
