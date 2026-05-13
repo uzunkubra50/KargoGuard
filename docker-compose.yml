@@ -37,9 +37,12 @@ services:
     ports:
       - "5672:5672"    # AMQP – C# API ve Python Worker bu porttan konuşur
       - "15672:15672"  # Web UI
+      - "15692:15692"  # Prometheus metrics
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - ./monitoring/rabbitmq/enabled_plugins:/etc/rabbitmq/enabled_plugins:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 15s
@@ -172,9 +175,79 @@ services:
       - api
     restart: unless-stopped
 
+  # ─────────────────────────────────────────────────────────────
+  # 7. Prometheus – Metrik Toplama  (http://localhost:9090)
+  # ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: kargoguard-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus.rules.yml:/etc/prometheus/prometheus.rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    depends_on:
+      - alertmanager
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 8. Alertmanager – Alarm Yönetimi  (http://localhost:9093)
+  # ─────────────────────────────────────────────────────────────
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: kargoguard-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 9. Grafana – Görsel Dashboard  (http://localhost:3001)
+  #    Giriş: admin / .env'deki GRAFANA_PASSWORD (varsayılan: kargoguard)
+  # ─────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.3
+    container_name: kargoguard-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER:     admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-kargoguard}
+      GF_USERS_ALLOW_SIGN_UP:     "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 10. PostgreSQL Exporter – DB metriklerini Prometheus'a taşır
+  # ─────────────────────────────────────────────────────────────
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.15.0
+    container_name: kargoguard-postgres-exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${DB_USER}:${DB_PASSWORD}@postgres:5432/${DB_NAME}?sslmode=disable"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 # ─────────────────────────────────────────────────────────────
 # Kalıcı Veri Hacimleri
 # ─────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
   minio_data:
+  prometheus_data:
+  grafana_data:
