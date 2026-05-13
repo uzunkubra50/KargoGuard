@@ -39,7 +39,7 @@ public class CargoController : ControllerBase
     /// <param name="file">Yüklenecek görsel dosyası (multipart/form-data)</param>
     /// <param name="cancellationToken">İptal jetonu</param>
     /// <returns>200 OK — MinIO'daki dosya adı ve kuyruk durumu</returns>
-    [Authorize(Roles = "admin")]
+    [Authorize(Roles = "admin,kurye")]
     [HttpPost("upload")]
     [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
@@ -374,6 +374,9 @@ public class CargoController : ControllerBase
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Lütfen hasarlı ürünün fotoğrafını ekleyin." });
 
+        if (file.Length > 8 * 1024 * 1024)
+            return BadRequest(new { message = "Fotoğraf 8MB'dan büyük olamaz. Kameranızın kalite/çözünürlük ayarını düşürüp tekrar çekin." });
+
         try
         {
             // 2. Fotoğrafı MinIO'ya Yükle (Dashboard'da görülebilmesi için)
@@ -444,11 +447,16 @@ public class CargoController : ControllerBase
                 }
 
                 _logger.LogWarning("Gemini API başarısız oldu (Deneme {Retry}). Status: {Status}, Body: {Body}", i + 1, geminiResponse.StatusCode, geminiRaw);
-                
-                if (geminiResponse.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable && 
+
+                if ((int)geminiResponse.StatusCode == 400)
+                {
+                    _logger.LogError("Gemini API Key geçersiz veya istek hatalı (400). .env dosyasındaki GEMINI_API_KEY'i kontrol edin.");
+                    break;
+                }
+                if (geminiResponse.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable &&
                     geminiResponse.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
                 {
-                    break; // Eğer 503 veya 429 dışı (örneğin 400) bir hataysa boşuna tekrar etme
+                    break;
                 }
 
                 await Task.Delay(4000, cancellationToken); // 4 saniye bekle tekrar dene
@@ -497,16 +505,23 @@ public class CargoController : ControllerBase
                     }
                 }
 
+                var failReason = geminiResponse?.StatusCode switch
+                {
+                    System.Net.HttpStatusCode.BadRequest        => "API key geçersiz (400) — .env dosyasındaki GEMINI_API_KEY'i güncelleyin.",
+                    System.Net.HttpStatusCode.TooManyRequests   => "Gemini günlük kota doldu (429) — yarın tekrar deneyin veya ücretli plana geçin.",
+                    System.Net.HttpStatusCode.ServiceUnavailable => "Gemini servisi geçici olarak kullanılamıyor (503) — birkaç dakika sonra tekrar deneyin.",
+                    _ => $"Gemini servisi yanıt vermedi ({(int?)geminiResponse?.StatusCode ?? 0})."
+                };
                 return Ok(new
                 {
                     cargo_id = cargo_ref_id,
                     status = "manual_review",
-                    ai_analysis = "Gemini servisi yanit vermedi veya kota limiti doldu.",
+                    ai_analysis = failReason,
                     content_analysis = new
                     {
                         is_damaged = false,
                         ai_confidence_score = 0.0,
-                        message = "Gemini analizi tamamlanamadi. Fotograf kaydedildi; manuel inceleme gerekiyor."
+                        message = $"Fotoğraf kaydedildi, AI analizi yapılamadı. {failReason}"
                     }
                 });
             }

@@ -3,7 +3,7 @@ import { useState, useRef } from 'react';
 import {
   StyleSheet, Text, View, TouchableOpacity, Alert,
   ActivityIndicator, TextInput, ScrollView,
-  SafeAreaView, StatusBar, Platform, StyleSheet as RNStyleSheet,
+  SafeAreaView, StatusBar, Platform,
 } from 'react-native';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,7 +13,7 @@ const API_BASE_URL   = 'http://172.31.182.140:5229';
 // customer-upload: Gemini AI ile anlık hasar analizi yapar
 const API_URL        = `${API_BASE_URL}/api/Cargo/customer-upload`;
 
-export default function CustomerPanel({ onBack }) {
+export default function CustomerPanel({ onBack, token }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [cargoId,    setCargoId]    = useState('');
   const [photo,      setPhoto]      = useState(null);
@@ -95,6 +95,7 @@ export default function CustomerPanel({ onBack }) {
         body:   formData,
         headers: {
           'ngrok-skip-browser-warning': 'true',
+          'Authorization': `Bearer ${token}`,
         },
       });
 
@@ -195,7 +196,7 @@ export default function CustomerPanel({ onBack }) {
             placeholderTextColor="#475569"
             value={cargoId}
             onChangeText={setCargoId}
-            keyboardType="default"
+            keyboardType="numeric"
             returnKeyType="done"
           />
         </View>

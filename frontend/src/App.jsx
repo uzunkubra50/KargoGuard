@@ -35,7 +35,7 @@ const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }
   </div>
 );
 
-const API = 'http://localhost:5229';
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5229';
 
 const authHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('kg_token') ?? ''}`
@@ -946,7 +946,12 @@ export default function CargoDashboard() {
                       <span className={`inline-flex px-3 py-1 rounded-full text-xs font-black border ${isOuterDmg ? t.redBadge : t.greenBadge}`}>
                         {isOuterDmg ? "HASARLI KUTU" : "SAĞLAM KUTU"}
                       </span>
-                      <p className={`text-xs mt-3 ${t.textMuted}`}>YOLO Model: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.aiConfidence)}</span></p>
+                      {selectedCargo.aiConfidence >= 0.05
+                        ? <p className={`text-xs mt-3 ${t.textMuted}`}>YOLO Model: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.aiConfidence)}</span></p>
+                        : selectedCargo.geminiGuvenSkoru > 0
+                          ? <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Analizi: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.geminiGuvenSkoru)}</span></p>
+                          : <p className={`text-xs mt-3 ${t.textMuted}`}>AI Hibrit Analiz: <span className={`font-bold ${t.textMain}`}>Tamamlandı</span></p>
+                      }
                     </div>
                   </div>
 

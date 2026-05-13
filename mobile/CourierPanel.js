@@ -17,7 +17,7 @@ const API_URL      = `${API_BASE_URL}/api/Cargo/upload`;
  * KURYEPANELİ — Kurye rolü için kargo fotoğrafı çekme ve gönderme ekranı.
  * @param {{ onBack: () => void }} props
  */
-export default function CourierPanel({ onBack }) {
+export default function CourierPanel({ onBack, token }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [gForce,    setGForce]    = useState(1.0);
   const [maxGForce, setMaxGForce] = useState(1.0);
@@ -93,7 +93,7 @@ export default function CourierPanel({ onBack }) {
 
       const res = await fetch(API_URL, {
         method: 'POST', body: formData,
-        headers: { 'Content-Type': 'multipart/form-data', 'ngrok-skip-browser-warning': 'true' },
+        headers: { 'ngrok-skip-browser-warning': 'true', 'Authorization': `Bearer ${token}` },
       });
       const ct = res.headers.get('content-type') || '';
       if (res.ok && ct.includes('application/json')) {
@@ -171,7 +171,9 @@ export default function CourierPanel({ onBack }) {
               <Text style={s.switchTitle}>🍷 Hassas Kargo</Text>
               <Text style={s.switchSub}>İvmeölçer Sensörünü Kullan</Text>
             </View>
-            <Switch value={isFragile} onValueChange={setIsFragile}
+            <Switch
+              value={isFragile}
+              onValueChange={(val) => { setIsFragile(val); if (val) setMaxGForce(1.0); }}
               trackColor={{ false: '#334155', true: '#f97316' }}
               thumbColor={isFragile ? '#fff' : '#94a3b8'} />
           </View>
