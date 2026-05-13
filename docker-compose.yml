@@ -210,8 +210,37 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 9. Grafana – Görsel Dashboard  (http://localhost:3001)
-  #    Giriş: admin / .env'deki GRAFANA_PASSWORD (varsayılan: kargoguard)
+  # 9. Loki – Log Depolama  (http://localhost:3100)
+  # ─────────────────────────────────────────────────────────────
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: kargoguard-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 10. Promtail – Log Toplayıcı (Docker container loglarını Loki'ye iletir)
+  # ─────────────────────────────────────────────────────────────
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: kargoguard-promtail
+    volumes:
+      - ./monitoring/promtail/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 11. Grafana – Görsel Dashboard  (http://localhost:3001)
+  #     Giriş: admin / .env'deki GRAFANA_PASSWORD (varsayılan: kargoguard)
   # ─────────────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.3
@@ -228,10 +257,11 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+      - loki
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 10. PostgreSQL Exporter – DB metriklerini Prometheus'a taşır
+  # 12. PostgreSQL Exporter – DB metriklerini Prometheus'a taşır
   # ─────────────────────────────────────────────────────────────
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
@@ -251,3 +281,4 @@ volumes:
   minio_data:
   prometheus_data:
   grafana_data:
+  loki_data:
