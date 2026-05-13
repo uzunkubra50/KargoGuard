@@ -31,26 +31,27 @@ public class AuthService : IAuthService
         // dynamic kullanıyoruz — Dapper ValueTuple ile column name mapping yapmaz
         var user = await conn.QueryFirstOrDefaultAsync(
             new CommandDefinition(
-                "SELECT username, password_hash, role FROM users WHERE username = @u",
+                "SELECT username, password_hash, role, company_id FROM users WHERE username = @u",
                 new { u = request.Username },
                 cancellationToken: cancellationToken));
 
         if (user is null) return null;
 
-        string storedHash = user.password_hash;
-        string storedRole = user.role;
-        string storedName = user.username;
+        string storedHash      = user.password_hash;
+        string storedRole      = user.role;
+        string storedName      = user.username;
+        int?   storedCompanyId = user.company_id is DBNull or null ? null : (int?)Convert.ToInt32(user.company_id);
 
         if (!BC.Verify(request.Password, storedHash))
             return null;
 
         var expiresAt = DateTime.UtcNow.AddHours(_config.GetValue<int>("Jwt:ExpiresInHours", 8));
-        var token     = GenerateToken(storedName, storedRole, expiresAt);
+        var token     = GenerateToken(storedName, storedRole, storedCompanyId, expiresAt);
 
         return new LoginResponse(token, storedRole, storedName, expiresAt);
     }
 
-    private string GenerateToken(string username, string role, DateTime expiresAt)
+    private string GenerateToken(string username, string role, int? companyId, DateTime expiresAt)
     {
         var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -60,6 +61,7 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Sub, username),
             new Claim(ClaimTypes.Name, username),
             new Claim(ClaimTypes.Role, role),
+            new Claim("company_id", companyId?.ToString() ?? "0"),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 

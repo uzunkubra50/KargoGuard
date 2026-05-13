@@ -320,6 +320,7 @@ def init_db():
             ("gemini_guven_skoru",    "FLOAT"),
             ("bbox_json",             "TEXT"),
             ("security_breach",       "BOOLEAN DEFAULT false"),
+            ("company_id",            "INT"),
         ]
 
         for col_name, col_type in yeni_sutunlar:
@@ -414,6 +415,7 @@ def process_image(ch, method, properties, body):
         if action == "upload":
             sarsinti_verisi = float(data.get("sarsinti_verisi", 0.0))
             is_fragile      = bool(data.get("is_fragile", False))
+            company_id      = data.get("company_id") or None
 
             # Gemini sonucu ve güvenlik ihlali (başlangıç değerleri)
             gemini_result  = None
@@ -502,8 +504,8 @@ def process_image(ch, method, properties, body):
                     (image_name, sarsinti_verisi, is_fragile,
                      ai_prediction_class, ai_confidence, final_decision,
                      gemini_hasar_turu, gemini_siddet, gemini_aciklama,
-                     gemini_guven_skoru, bbox_json, security_breach)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     gemini_guven_skoru, bbox_json, security_breach, company_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 image_path,
                 sarsinti_verisi,
@@ -516,7 +518,8 @@ def process_image(ch, method, properties, body):
                 gemini_result.get("aciklama")             if gemini_result else None,
                 gemini_result.get("guven_skoru")          if gemini_result else None,
                 json.dumps(bbox_dict)                     if bbox_dict else None,
-                security_breach
+                security_breach,
+                company_id
             ))
             conn.commit()
             cur.close()

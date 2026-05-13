@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Asp.Versioning;
 using KargoGuard.API.Models;
 using KargoGuard.API.Services;
@@ -20,6 +21,9 @@ public class CargoController : ControllerBase
     private readonly IBlockchainService _blockchainService;
 
     private const string ImageProcessingQueue = "image_processing_queue";
+
+    private int GetCompanyId() =>
+        int.TryParse(User.FindFirstValue("company_id"), out var id) ? id : 0;
 
     public CargoController(
         IConfiguration configuration,
@@ -78,6 +82,7 @@ public class CargoController : ControllerBase
             image_path = objectName,
             sarsinti_verisi = sarsintiVerisi,
             is_fragile = isFragile,
+            company_id = GetCompanyId(),
             status = "Pending"
         };
 
@@ -152,18 +157,19 @@ public class CargoController : ControllerBase
         try
         {
             var connectionString = _configuration.GetConnectionString("DefaultConnection");
-            
+            var companyId        = GetCompanyId();
+
             using var connection = new NpgsqlConnection(connectionString);
-            
+
             var sql = @"
-                SELECT 
-                    id                      AS Id, 
+                SELECT
+                    id                      AS Id,
                     status                  AS Status,
-                    image_name              AS ImageName, 
-                    sarsinti_verisi         AS SarsintiVerisi, 
-                    ai_prediction_class     AS AiPredictionClass, 
-                    ai_confidence           AS AiConfidence, 
-                    final_decision          AS FinalDecision, 
+                    image_name              AS ImageName,
+                    sarsinti_verisi         AS SarsintiVerisi,
+                    ai_prediction_class     AS AiPredictionClass,
+                    ai_confidence           AS AiConfidence,
+                    final_decision          AS FinalDecision,
                     processed_at            AS ProcessedAt,
                     delivery_photo_url      AS DeliveryPhotoUrl,
                     delivery_final_decision AS DeliveryFinalDecision,
@@ -178,13 +184,15 @@ public class CargoController : ControllerBase
                     gemini_aciklama         AS GeminiAciklama,
                     gemini_guven_skoru      AS GeminiGuvenSkoru,
                     bbox_json               AS BboxJson,
-                    COALESCE(security_breach, false) AS SecurityBreach
-                FROM cargo_analysis_results 
-                ORDER BY processed_at DESC 
+                    COALESCE(security_breach, false) AS SecurityBreach,
+                    company_id              AS CompanyId
+                FROM cargo_analysis_results
+                WHERE company_id = @CompanyId
+                ORDER BY processed_at DESC
                 LIMIT 10;
             ";
 
-            var results = await connection.QueryAsync<CargoAnalysisResult>(sql);
+            var results = await connection.QueryAsync<CargoAnalysisResult>(sql, new { CompanyId = companyId });
 
             if (Request.Headers.Accept.Any(value => value?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true))
                 return Content(RenderResultsHtml(results), "text/html; charset=utf-8");

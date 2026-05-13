@@ -28,5 +28,6 @@ public class CargoAnalysisResult
     public double? GeminiGuvenSkoru { get; set; }   // 0.0 – 1.0
     public string? BboxJson { get; set; }            // YOLO bbox: {"x":..,"y":..,"width":..,"height":..}
     public bool SecurityBreach { get; set; }         // true → kutu açılmış!
+    public int? CompanyId { get; set; }
 }
 
