@@ -1,0 +1,69 @@
+groups:
+  - name: kargoguard.alerts
+    rules:
+
+      # API scrape hedefi kayboldu
+      - alert: KargoGuardAPIDown
+        expr: up{job="kargoguard-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "KargoGuard API çevrimdışı"
+          description: "kargoguard-api scrape hedefine 1 dakikadır ulaşılamıyor."
+
+      # 5xx hata oranı yüksek
+      - alert: HighAPIErrorRate
+        expr: >
+          100 * sum(rate(http_requests_received_total{job="kargoguard-api", code=~"5.."}[5m]))
+          / (sum(rate(http_requests_received_total{job="kargoguard-api"}[5m])) > 0)
+          > 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API hata oranı yüksek"
+          description: "Son 5 dakikada API 5xx hata oranı %{{ $value | printf \"%.1f\" }} oldu (eşik: %20)."
+
+      # p95 yanıt süresi uzun
+      - alert: HighAPILatency
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="kargoguard-api"}[5m])) by (le)
+          ) * 1000 > 2000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API yanıt süresi yüksek"
+          description: "p95 yanıt süresi {{ $value | printf \"%.0f\" }}ms (eşik: 2000ms)."
+
+      # RabbitMQ AI kuyruğu dolu
+      - alert: AIQueueDepthHigh
+        expr: rabbitmq_queue_messages_ready{queue="image_processing_queue"} > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI işleme kuyruğu dolup taşıyor"
+          description: "image_processing_queue'da {{ $value }} bekleyen mesaj var (eşik: 50)."
+
+      # PostgreSQL exporter kayboldu
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL erişilemiyor"
+          description: "postgres-exporter 1 dakikadır yanıt vermiyor — veritabanı çökmüş olabilir."
+
+      # Veritabanı bağlantısı yüksek
+      - alert: HighDBConnections
+        expr: pg_stat_activity_count{datname="kargoguard_db", state="active"} > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Veritabanı aktif bağlantısı yüksek"
+          description: "kargoguard_db üzerinde {{ $value }} aktif bağlantı var (eşik: 80)."

@@ -3,6 +3,7 @@ using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -96,6 +97,9 @@ using (var scope = app.Services.CreateScope())
 // CORS'u aktif et (Routing/Controller'dan önce)
 app.UseCors("AllowFrontend");
 
+// Prometheus — HTTP istek metriklerini kaydet (auth'tan önce ki tüm istekler yakalanır)
+app.UseHttpMetrics();
+
 app.UseSwagger();
 app.UseSwaggerUI();
 
@@ -103,5 +107,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapMetrics("/metrics");   // Prometheus scrape endpoint — auth gerektirmez
 
 app.Run();
