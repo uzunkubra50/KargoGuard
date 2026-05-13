@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Asp.Versioning;
 using KargoGuard.API.Models;
 using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -9,7 +10,8 @@ using Microsoft.IdentityModel.Tokens;
 namespace KargoGuard.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;

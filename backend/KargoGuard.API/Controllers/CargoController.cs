@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using KargoGuard.API.Models;
 using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -8,7 +9,8 @@ using Npgsql;
 namespace KargoGuard.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
 public class CargoController : ControllerBase
 {
     private readonly IConfiguration _configuration;
