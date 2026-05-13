@@ -1,4 +1,5 @@
 using System.Text;
+using Asp.Versioning;
 using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -56,6 +57,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+// API Versiyonlama
+builder.Services.AddApiVersioning(opt =>
+{
+    opt.DefaultApiVersion                = new ApiVersion(1, 0);
+    opt.AssumeDefaultVersionWhenUnspecified = true;
+    opt.ReportApiVersions                = true;
+    opt.ApiVersionReader                 = new UrlSegmentApiVersionReader();
+}).AddApiExplorer(opt =>
+{
+    opt.GroupNameFormat           = "'v'VVV";
+    opt.SubstituteApiVersionInUrl = true;
+});
+
 // KargoGuard Servisleri
 builder.Services.AddControllers();
 builder.Services.AddSingleton<IDatabaseInitializer, DatabaseInitializer>();
@@ -68,6 +82,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "KargoGuard API", Version = "v1" });
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name         = "Authorization",
@@ -101,7 +116,10 @@ app.UseCors("AllowFrontend");
 app.UseHttpMetrics();
 
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "KargoGuard API v1");
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
