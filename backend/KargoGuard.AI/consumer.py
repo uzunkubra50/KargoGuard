@@ -375,6 +375,17 @@ def process_image(ch, method, properties, body):
 
         image_base64 = base64.b64encode(image_bytes_original).decode("utf-8")
 
+        # Gemini için resize edilmiş versiyon (telefon fotoğrafları 10MB+ olabiliyor)
+        try:
+            _gemini_img = Image.open(BytesIO(image_bytes_original)).convert("RGB")
+            if max(_gemini_img.size) > 1024:
+                _gemini_img.thumbnail((1024, 1024), Image.LANCZOS)
+            _buf = BytesIO()
+            _gemini_img.save(_buf, format="JPEG", quality=85)
+            image_base64_gemini = base64.b64encode(_buf.getvalue()).decode("utf-8")
+        except Exception:
+            image_base64_gemini = image_base64
+
         # -- Roboflow'a gonder --
         print(f"[->] Roboflow'a gonderiliyor: {image_path}")
         response    = requests.post(
@@ -429,7 +440,7 @@ def process_image(ch, method, properties, body):
             # -- Adim 2.1: Gemini Analizi (YOLO bulsun veya bulmasin her zaman calisir) --
             cropped_b64 = base64.b64encode(cropped_bytes).decode("utf-8") if cropped_bytes else None
             print("[->] Gemini API cagiriliyor... Kutunun genel/dis ambalaj durumu inceleniyor.")
-            gemini_result = gemini_hasar_analiz(image_base64, cropped_b64)
+            gemini_result = gemini_hasar_analiz(image_base64_gemini, cropped_b64)
             print(f"[Gemini] Sonuç: {gemini_result}")
 
             # Güvenlik ihlali kontrolü — kutu açılmış mı?
@@ -517,40 +528,65 @@ def process_image(ch, method, properties, body):
         elif action == "delivery":
             cargo_id = int(data.get("cargo_id", 0))
 
+            # Telefon fotoğrafları çok büyük olabiliyor (8-15MB); Gemini 400 vermemesi için resize et
+            try:
+                delivery_img = Image.open(BytesIO(image_bytes_original)).convert("RGB")
+                max_dim = 1024
+                if max(delivery_img.size) > max_dim:
+                    delivery_img.thumbnail((max_dim, max_dim), Image.LANCZOS)
+                buf = BytesIO()
+                delivery_img.save(buf, format="JPEG", quality=85)
+                delivery_image_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+            except Exception as resize_err:
+                print(f"[!] Delivery görüntü resize hatası (orijinal kullanılıyor): {resize_err}")
+                delivery_image_b64 = image_base64
+
             # Delivery için sadece Gemini analizi yap (İç hasar/kırık vs. kontrolü)
             delivery_request = {
                 "contents": [{
                     "parts": [
                         {"text": "Sen bir kargo hasar uzmanısın. Fotoğraftaki üründe kırık, çatlak, ezilme veya herhangi bir fiziksel hasar var mı? DİKKAT: Gönderilen fotoğraflar taşıma sırasında hasar görmüş eşyaları içerir. Görseldeki nesne parçalanmış, kırılmış veya bütünlüğü bozulmuşsa KESİNLİKLE 'HASARLI' demelisin. Lütfen sadece şu iki formattan birini kullan: 'HASARLI - %X' veya 'SAĞLAM - %X'. Burada X, tahmininin yüzde olarak güven skorudur. Başka hiçbir şey yazma."},
-                        {"inline_data": {"mime_type": "image/jpeg", "data": image_base64}}
+                        {"inline_data": {"mime_type": "image/jpeg", "data": delivery_image_b64}}
                     ]
                 }],
                 "generationConfig": {"temperature": 0.2}
             }
             
-            gemini_resp = make_gemini_request(delivery_request)
-            
             delivery_decision = "SAĞLAM"
             ai_confidence = 0.0
             ai_prediction_class = "bilinmiyor"
-            
-            if gemini_resp.ok:
-                resp_json = gemini_resp.json()
-                ai_text = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().upper()
-                
-                is_inner_damaged = "HASARLI" in ai_text or "KIRIK" in ai_text or "ÇATLAK" in ai_text
-                delivery_decision = "HASARLI" if is_inner_damaged else "SAĞLAM"
-                ai_prediction_class = "ic_hasar" if is_inner_damaged else "saglamli"
-                
-                import re
-                match = re.search(r"%(\d+(?:[.,]\d+)?)", ai_text)
-                if match:
-                    ai_confidence = float(match.group(1).replace(',', '.')) / 100.0
-            else:
-                print(f"[!] Delivery Gemini API hata: {gemini_resp.status_code}")
+            is_inner_damaged = False
+
+            try:
+                gemini_resp = make_gemini_request(delivery_request)
+
+                if gemini_resp.ok:
+                    resp_json = gemini_resp.json()
+                    ai_text = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().upper()
+
+                    is_inner_damaged = "HASARLI" in ai_text or "KIRIK" in ai_text or "ÇATLAK" in ai_text
+                    delivery_decision = "HASARLI" if is_inner_damaged else "SAĞLAM"
+                    ai_prediction_class = "ic_hasar" if is_inner_damaged else "saglamli"
+
+                    import re
+                    match = re.search(r"%(\d+(?:[.,]\d+)?)", ai_text)
+                    if match:
+                        ai_confidence = float(match.group(1).replace(',', '.')) / 100.0
+                else:
+                    status_code = gemini_resp.status_code
+                    if status_code == 400:
+                        print(f"[!] Delivery Gemini API Key geçersiz (400) — .env dosyasındaki GEMINI_API_KEY'i kontrol edin.")
+                    elif status_code == 429:
+                        print(f"[!] Delivery Gemini kota doldu (429) — yarın tekrar deneyin.")
+                    else:
+                        print(f"[!] Delivery Gemini API hata: {status_code}")
+                    ai_prediction_class = "gemini_unavailable"
+                    delivery_decision = "MANUEL_INCELEME"
+
+            except Exception as gemini_exc:
+                print(f"[!] Delivery Gemini bağlantı hatası: {gemini_exc} — fotoğraf kaydedilecek, MANUEL_INCELEME.")
                 ai_prediction_class = "gemini_unavailable"
                 delivery_decision = "MANUEL_INCELEME"
-                is_inner_damaged = False
 
             is_inner_damaged = (delivery_decision == "HASARLI")
 

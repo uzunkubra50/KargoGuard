@@ -1,0 +1,82 @@
+name: CI – Build & Lint
+
+# Her PR ve main push'ta çalışır.
+# Amacı: kod kırık olmadan merge edilsin.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+
+  # ──────────────────────────────────────────────
+  # 1. C# API — dotnet restore + build
+  # ──────────────────────────────────────────────
+  api-build:
+    name: "C# API – Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: .NET 10 SDK kur
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Bağımlılıkları yükle
+        working-directory: backend/KargoGuard.API
+        run: dotnet restore
+
+      - name: Derle (Release)
+        working-directory: backend/KargoGuard.API
+        run: dotnet build -c Release --no-restore
+
+  # ──────────────────────────────────────────────
+  # 2. Python AI Worker — sözdizimi + bağımlılık
+  # ──────────────────────────────────────────────
+  ai-worker-lint:
+    name: "Python Worker – Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.11 kur
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/KargoGuard.AI/requirements.txt
+
+      - name: Bağımlılıkları yükle
+        run: pip install -r backend/KargoGuard.AI/requirements.txt
+
+      - name: Sözdizimi kontrolü
+        run: python -m py_compile backend/KargoGuard.AI/consumer.py && echo "Sözdizimi temiz"
+
+  # ──────────────────────────────────────────────
+  # 3. React Frontend — npm build
+  # ──────────────────────────────────────────────
+  frontend-build:
+    name: "Frontend – Vite Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node 20 kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Bağımlılıkları yükle
+        working-directory: frontend
+        run: npm ci 2>/dev/null || npm install
+
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: ""   # Nginx proxy modu

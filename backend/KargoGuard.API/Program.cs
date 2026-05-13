@@ -6,6 +6,24 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// .env dosyasından Gemini key'ini yükle — Python worker ile aynı kaynak
+// appsettings.Development.json'daki değeri override eder, senkron sorunu ortadan kalkar
+var envFilePath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "KargoGuard.AI", ".env"));
+if (File.Exists(envFilePath))
+{
+    foreach (var line in File.ReadAllLines(envFilePath))
+    {
+        var t = line.Trim();
+        if (t.StartsWith('#') || !t.Contains('=')) continue;
+        var sep = t.IndexOf('=');
+        Environment.SetEnvironmentVariable(t[..sep].Trim(), t[(sep + 1)..].Trim());
+    }
+    var envGeminiKey   = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+    var envGeminiModel = Environment.GetEnvironmentVariable("GEMINI_MODEL");
+    if (!string.IsNullOrEmpty(envGeminiKey))   builder.Configuration["Gemini:ApiKey"] = envGeminiKey;
+    if (!string.IsNullOrEmpty(envGeminiModel)) builder.Configuration["Gemini:Model"]  = envGeminiModel;
+}
+
 // CORS Politikası (Frontend React için)
 builder.Services.AddCors(options =>
 {

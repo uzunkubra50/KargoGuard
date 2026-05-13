@@ -1,0 +1,24 @@
+# KargoGuard – Production Override
+#
+# CD pipeline'ından gelen hazır imajları kullanır; yerelde build yapmaz.
+#
+# Kullanım:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml pull
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# .env dosyasında GITHUB_USERNAME tanımlı olmalı.
+
+version: '3.8'
+
+services:
+  api:
+    build: !reset null
+    image: ghcr.io/${GITHUB_USERNAME}/kargoguard-api:latest
+
+  ai-worker:
+    build: !reset null
+    image: ghcr.io/${GITHUB_USERNAME}/kargoguard-ai-worker:latest
+
+  frontend:
+    build: !reset null
+    image: ghcr.io/${GITHUB_USERNAME}/kargoguard-frontend:latest

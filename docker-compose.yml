@@ -1,47 +1,180 @@
 version: '3.8'
 
+# KargoGuard – Tam Mikroservis Orkestrasyon Yapılandırması
+# Kullanım : docker-compose up --build
+# Ön koşul : Kök dizinde .env dosyası hazır olmalı  (cp .env.example .env)
+
 services:
-  # 1. PostgreSQL - İlişkisel Veritabanı
+
+  # ─────────────────────────────────────────────────────────────
+  # 1. PostgreSQL – İlişkisel Veritabanı
+  # ─────────────────────────────────────────────────────────────
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: kargoguard-postgres
     environment:
-      POSTGRES_USER: kargo_admin
-      POSTGRES_PASSWORD: kargo_password
-      POSTGRES_DB: kargoguard_db
+      POSTGRES_USER:     ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB:       ${DB_NAME}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
-  # 2. RabbitMQ - Mikroservisler Arası Mesaj Kuyruğu
+  # ─────────────────────────────────────────────────────────────
+  # 2. RabbitMQ – Mesaj Kuyruğu  (Yönetim UI: http://localhost:15672)
+  # ─────────────────────────────────────────────────────────────
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13-management-alpine
     container_name: kargoguard-rabbitmq
     ports:
-      - "5672:5672"   # C# ve Python'un haberleşeceği port
-      - "15672:15672" # Tarayıcıdan izleyeceğimiz yönetim paneli portu
+      - "5672:5672"    # AMQP – C# API ve Python Worker bu porttan konuşur
+      - "15672:15672"  # Web UI
     environment:
-      RABBITMQ_DEFAULT_USER: kargo_admin
-      RABBITMQ_DEFAULT_PASS: kargo_password
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
-  # 3. MinIO - Medya (Görsel) Depolama
+  # ─────────────────────────────────────────────────────────────
+  # 3. MinIO – Görsel Depolama S3 uyumlu  (UI: http://localhost:9001)
+  # ─────────────────────────────────────────────────────────────
   minio:
-    image: minio/minio
+    image: minio/minio:latest
     container_name: kargoguard-minio
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"   
-      - "9001:9001"   # Tarayıcıdan fotoğrafları göreceğimiz port
+      - "9000:9000"  # S3 API
+      - "9001:9001"  # Web UI
     environment:
-      MINIO_ROOT_USER: kargo_admin
-      MINIO_ROOT_PASSWORD: kargo_password
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     restart: unless-stopped
 
+  # ─────────────────────────────────────────────────────────────
+  # 4. KargoGuard API – C# ASP.NET Core 10  (http://localhost:5229)
+  # ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./backend/KargoGuard.API
+      dockerfile: Dockerfile
+    container_name: kargoguard-api
+    ports:
+      - "5229:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS:  "8080"
+      # Veritabanı
+      ConnectionStrings__DefaultConnection: "Host=postgres;Database=${DB_NAME};Username=${DB_USER};Password=${DB_PASSWORD}"
+      # MinIO
+      MinIO__Endpoint:   minio:9000
+      MinIO__AccessKey:  ${MINIO_ACCESS_KEY}
+      MinIO__SecretKey:  ${MINIO_SECRET_KEY}
+      MinIO__BucketName: ${MINIO_BUCKET}
+      MinIO__WithSSL:    "false"
+      # RabbitMQ
+      RabbitMQ__Host:     rabbitmq
+      RabbitMQ__Port:     "5672"
+      RabbitMQ__Username: ${RABBITMQ_USERNAME}
+      RabbitMQ__Password: ${RABBITMQ_PASSWORD}
+      # Blockchain
+      Blockchain__AlchemyUrl:      ${BLOCKCHAIN_ALCHEMY_URL}
+      Blockchain__PrivateKey:      ${BLOCKCHAIN_PRIVATE_KEY}
+      Blockchain__ContractAddress: ${BLOCKCHAIN_CONTRACT_ADDRESS}
+      # Gemini AI
+      Gemini__ApiKey: ${GEMINI_API_KEY}
+      Gemini__Model:  ${GEMINI_MODEL}
+      # JWT
+      Jwt__Key:            ${JWT_KEY}
+      Jwt__Issuer:         KargoGuard
+      Jwt__Audience:       KargoGuardClient
+      Jwt__ExpiresInHours: "8"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 5. AI Worker – Python YOLO + Gemini Vision
+  # ─────────────────────────────────────────────────────────────
+  ai-worker:
+    build:
+      context: ./backend/KargoGuard.AI
+      dockerfile: Dockerfile
+    container_name: kargoguard-ai-worker
+    environment:
+      # RabbitMQ
+      RABBITMQ_HOST:     rabbitmq
+      RABBITMQ_PORT:     "5672"
+      RABBITMQ_USERNAME: ${RABBITMQ_USERNAME}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      # PostgreSQL
+      DB_HOST:     postgres
+      DB_PORT:     "5432"
+      DB_USER:     ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME:     ${DB_NAME}
+      # MinIO
+      MINIO_ENDPOINT:   minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET:     ${MINIO_BUCKET}
+      # AI
+      GEMINI_API_KEY:   ${GEMINI_API_KEY}
+      GEMINI_MODEL:     ${GEMINI_MODEL}
+      ROBOFLOW_API_KEY: ${ROBOFLOW_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 6. Frontend – React + Vite → Nginx  (http://localhost:3000)
+  # ─────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""   # Boş = Nginx proxy kullan; doğrudan: http://localhost:5229
+    container_name: kargoguard-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+# ─────────────────────────────────────────────────────────────
+# Kalıcı Veri Hacimleri
+# ─────────────────────────────────────────────────────────────
 volumes:
   postgres_data:
   minio_data:
