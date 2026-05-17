@@ -871,7 +871,13 @@ export default function CargoDashboard() {
                                 <div className="flex gap-2 mt-1">
                                   <span className={`text-[10px] font-mono ${t.textMuted}`}>#{item.id}</span>
                                   {item.isFragile && <span className={`text-[9px] px-1.5 rounded border ${t.orangeBadge}`}>HASSAS</span>}
-                                  {item.txHash && <span className={`text-[9px] px-1.5 rounded border ${t.blueBadge}`}>WEB3</span>}
+                                  {item.txHash && (
+                                    <a href={`https://sepolia.etherscan.io/tx/${item.txHash}`} target="_blank" rel="noreferrer"
+                                      className={`text-[9px] px-1.5 rounded border ${t.blueBadge} hover:underline`}
+                                      onClick={e => e.stopPropagation()}>
+                                      🔗 WEB3
+                                    </a>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -1058,9 +1064,17 @@ export default function CargoDashboard() {
                                 <span className={`font-bold ${t.textMain}`}>{selectedCargo.geminiHasarTuru}</span>
                               </div>
                               {selectedCargo.geminiSiddet && (
-                                <div className="flex justify-between text-[10px]">
+                                <div className="flex items-center justify-between text-[10px]">
                                   <span className={t.textMuted}>Şiddet</span>
-                                  <span className={`font-black ${(() => { const s = (selectedCargo.geminiSiddet || '').toLowerCase(); return ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k)) ? 'text-red-500' : ['orta','medium','moderate','minor','hafif'].some(k => s.includes(k)) ? 'text-orange-500' : 'text-emerald-500'; })()}`}>{selectedCargo.geminiSiddet}</span>
+                                  {(() => {
+                                    const s = (selectedCargo.geminiSiddet || '').toLowerCase();
+                                    const isHigh = ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k));
+                                    const isMed  = ['orta','medium','moderate'].some(k => s.includes(k));
+                                    const cls = isHigh ? 'bg-red-100 text-red-700 border-red-300'
+                                              : isMed  ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                                                       : 'bg-emerald-100 text-emerald-700 border-emerald-300';
+                                    return <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cls}`}>{selectedCargo.geminiSiddet}</span>;
+                                  })()}
                                 </div>
                               )}
                               {selectedCargo.geminiAciklama && (
