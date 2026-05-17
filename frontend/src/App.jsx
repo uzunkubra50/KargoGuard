@@ -60,7 +60,7 @@ const EnterpriseLogin = ({ onLogin }) => {
     try {
       let res;
       if (role === 'musteri') {
-        res = await fetch(`${API}/api/auth/tracking-access`, {
+        res = await fetch(`${API}/api/v1/auth/tracking-access`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ trackCode: trackCode || 'MISAFIR', phone: trackPhone }),
@@ -68,7 +68,7 @@ const EnterpriseLogin = ({ onLogin }) => {
       } else {
         const username = role === 'admin' ? adminEmail : kuryeId;
         const password = role === 'admin' ? adminPwd   : kuryePwd;
-        res = await fetch(`${API}/api/auth/login`, {
+        res = await fetch(`${API}/api/v1/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password }),
