@@ -7,11 +7,9 @@ import {
   SafeAreaView, StatusBar, Platform,
 } from 'react-native';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ⚙️  BAĞLANTI AYARI — IP veya Ngrok değişirse SADECE bu satırı güncelleyin
-// ─────────────────────────────────────────────────────────────────────────────
-const API_BASE_URL = 'http://172.31.182.140:5229';
-const API_URL      = `${API_BASE_URL}/api/Cargo/upload`;
+import { API_BASE_URL } from './config';
+
+const API_URL = `${API_BASE_URL}/api/Cargo/upload`;
 
 /**
  * KURYEPANELİ — Kurye rolü için kargo fotoğrafı çekme ve gönderme ekranı.

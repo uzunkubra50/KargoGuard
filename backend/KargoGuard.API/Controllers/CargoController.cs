@@ -4,6 +4,7 @@ using KargoGuard.API.Models;
 using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Dapper;
 using Npgsql;
 
@@ -12,6 +13,7 @@ namespace KargoGuard.API.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/[controller]")]
+[EnableRateLimiting("per-company")]
 public class CargoController : ControllerBase
 {
     private readonly IConfiguration _configuration;

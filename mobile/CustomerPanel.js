@@ -6,12 +6,10 @@ import {
   SafeAreaView, StatusBar, Platform,
 } from 'react-native';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ⚙️  BAĞLANTI AYARI — Bilgisayarınızın WiFi IP Adresi
-// ─────────────────────────────────────────────────────────────────────────────
-const API_BASE_URL   = 'http://172.31.182.140:5229';
+import { API_BASE_URL } from './config';
+
 // customer-upload: Gemini AI ile anlık hasar analizi yapar
-const API_URL        = `${API_BASE_URL}/api/Cargo/customer-upload`;
+const API_URL = `${API_BASE_URL}/api/Cargo/customer-upload`;
 
 export default function CustomerPanel({ onBack, token }) {
   const [permission, requestPermission] = useCameraPermissions();

@@ -24,6 +24,7 @@
     <PackageReference Include="prometheus-net.AspNetCore" Version="8.2.1" />
     <PackageReference Include="Asp.Versioning.Mvc"             Version="8.1.0" />
     <PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="8.1.0" />
+    <PackageReference Include="StackExchange.Redis"            Version="2.8.0" />
   </ItemGroup>
 
 </Project>

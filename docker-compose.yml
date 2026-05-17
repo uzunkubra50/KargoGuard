@@ -52,7 +52,26 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 3. MinIO – Görsel Depolama S3 uyumlu  (UI: http://localhost:9001)
+  # 3. Redis – Dağıtık Önbellek & Token Blacklist  (port 6379)
+  # ─────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: kargoguard-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────
+  # 4. MinIO – Görsel Depolama S3 uyumlu  (UI: http://localhost:9001)
   # ─────────────────────────────────────────────────────────────
   minio:
     image: minio/minio:latest
@@ -75,7 +94,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 4. KargoGuard API – C# ASP.NET Core 10  (http://localhost:5229)
+  # 5. KargoGuard API – C# ASP.NET Core 10  (http://localhost:5229)
   # ─────────────────────────────────────────────────────────────
   api:
     build:
@@ -112,6 +131,8 @@ services:
       Jwt__Issuer:         KargoGuard
       Jwt__Audience:       KargoGuardClient
       Jwt__ExpiresInHours: "8"
+      # Redis
+      Redis__ConnectionString: "redis:6379,abortConnect=false"
     depends_on:
       postgres:
         condition: service_healthy
@@ -119,10 +140,12 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 5. AI Worker – Python YOLO + Gemini Vision
+  # 6. AI Worker – Python YOLO + Gemini Vision
   # ─────────────────────────────────────────────────────────────
   ai-worker:
     build:
@@ -160,7 +183,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 6. Frontend – React + Vite → Nginx  (http://localhost:3000)
+  # 7. Frontend – React + Vite → Nginx  (http://localhost:3000)
   # ─────────────────────────────────────────────────────────────
   frontend:
     build:
@@ -176,7 +199,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 7. Prometheus – Metrik Toplama  (http://localhost:9090)
+  # 8. Prometheus – Metrik Toplama  (http://localhost:9090)
   # ─────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.52.0
@@ -195,7 +218,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 8. Alertmanager – Alarm Yönetimi  (http://localhost:9093)
+  # 9. Alertmanager – Alarm Yönetimi  (http://localhost:9093)
   # ─────────────────────────────────────────────────────────────
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -210,7 +233,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 9. Loki – Log Depolama  (http://localhost:3100)
+  # 10. Loki – Log Depolama  (http://localhost:3100)
   # ─────────────────────────────────────────────────────────────
   loki:
     image: grafana/loki:2.9.8
@@ -224,7 +247,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 10. Promtail – Log Toplayıcı (Docker container loglarını Loki'ye iletir)
+  # 11. Promtail – Log Toplayıcı (Docker container loglarını Loki'ye iletir)
   # ─────────────────────────────────────────────────────────────
   promtail:
     image: grafana/promtail:2.9.8
@@ -239,7 +262,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 11. Grafana – Görsel Dashboard  (http://localhost:3001)
+  # 12. Grafana – Görsel Dashboard  (http://localhost:3001)
   #     Giriş: admin / .env'deki GRAFANA_PASSWORD (varsayılan: kargoguard)
   # ─────────────────────────────────────────────────────────────
   grafana:
@@ -261,7 +284,7 @@ services:
     restart: unless-stopped
 
   # ─────────────────────────────────────────────────────────────
-  # 12. PostgreSQL Exporter – DB metriklerini Prometheus'a taşır
+  # 13. PostgreSQL Exporter – DB metriklerini Prometheus'a taşır
   # ─────────────────────────────────────────────────────────────
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
@@ -279,6 +302,7 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  redis_data:
   prometheus_data:
   grafana_data:
   loki_data:

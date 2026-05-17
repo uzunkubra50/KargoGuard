@@ -7,8 +7,7 @@ import {
 
 import CourierPanel  from './CourierPanel';
 import CustomerPanel from './CustomerPanel';
-
-const API_BASE_URL = 'http://172.31.182.140:5229';
+import { API_BASE_URL } from './config';
 
 export default function App() {
   const [userRole, setUserRole] = useState(null); // null | 'courier' | 'customer'

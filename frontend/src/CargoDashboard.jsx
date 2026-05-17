@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5229';
+
 const CargoDashboard = () => {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -11,7 +13,7 @@ const CargoDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://localhost:5229/api/cargo/results");
+      const response = await fetch(`${API}/api/cargo/results`);
       if (!response.ok) throw new Error("Veriler alınırken bir hata oluştu.");
       const data = await response.json();
       setResults(data);
