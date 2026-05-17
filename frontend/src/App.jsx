@@ -306,7 +306,7 @@ const KuryeView = ({ onLogout }) => {
   const [cargos, setCargos] = useState([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    fetch(`${API}/api/cargo/results`, { headers: authHeaders() })
+    fetch(`${API}/api/v1/cargo/results`, { headers: authHeaders() })
       .then(r => r.json())
       .then(data => { setCargos(data); setLoading(false); })
       .catch(() => setLoading(false));
@@ -381,7 +381,7 @@ const MusteriView = ({ onLogout }) => {
     if (!query.trim()) return;
     setSearching(true); setResult(null); setNotFound(false);
     try {
-      const r = await fetch(`${API}/api/cargo/results`, { headers: authHeaders() });
+      const r = await fetch(`${API}/api/v1/cargo/results`, { headers: authHeaders() });
       const data = await r.json();
       const found = data.find(c => String(c.id) === query.trim());
       if (found) setResult(found);
@@ -550,7 +550,7 @@ export default function CargoDashboard() {
   const fetchResults = async () => {
     setLoading(true); setError(null);
     try {
-      const r = await fetch(`${API}/api/cargo/results`, { headers: authHeaders() });
+      const r = await fetch(`${API}/api/v1/cargo/results`, { headers: authHeaders() });
       if (r.status === 401) { handleLogout(); return; }
       if (!r.ok) throw new Error("API'den veri alınamadı.");
       setResults(await r.json());
@@ -564,7 +564,7 @@ export default function CargoDashboard() {
     (async () => {
       setInnerLoading(true); setInnerAnalysis(null);
       try {
-        const r = await fetch(`${API}/api/cargo/analyze-inner/${selectedCargo.id}`, { headers: authHeaders() });
+        const r = await fetch(`${API}/api/v1/cargo/analyze-inner/${selectedCargo.id}`, { headers: authHeaders() });
         setInnerAnalysis(await r.json());
       } catch { setInnerAnalysis({ error: true }); }
       finally { setInnerLoading(false); }
