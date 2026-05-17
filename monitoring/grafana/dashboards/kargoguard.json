@@ -5,6 +5,103 @@
   "id": null,
   "links": [],
   "panels": [
+
+    {
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#3b82f6", "mode": "fixed" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#3b82f6", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 0 },
+      "id": 7,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"Toplam Kargo\" FROM cargo_analysis_results",
+          "refId": "A"
+        }
+      ],
+      "title": "Toplam Kargo",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#ef4444", "mode": "fixed" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#ef4444", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 0 },
+      "id": 8,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"Hasarlı\" FROM cargo_analysis_results WHERE final_decision = 'HASARLI'",
+          "refId": "A"
+        }
+      ],
+      "title": "Hasarlı Kargo",
+      "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "postgres", "uid": "postgres" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "fixedColor": "#10b981", "mode": "fixed" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "#10b981", "value": null }] },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 0 },
+      "id": 9,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "postgres", "uid": "postgres" },
+          "format": "table",
+          "rawSql": "SELECT COUNT(*) AS \"Blockchain\" FROM cargo_analysis_results WHERE tx_hash IS NOT NULL AND tx_hash != ''",
+          "refId": "A"
+        }
+      ],
+      "title": "Blockchain Mühürlü",
+      "type": "stat"
+    },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -15,7 +112,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "id": 1,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
@@ -32,6 +129,7 @@
       "title": "API İstek Hızı (req/s)",
       "type": "timeseries"
     },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -42,7 +140,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "id": 2,
       "options": {
         "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
@@ -65,6 +163,7 @@
       "title": "API Yanıt Süresi (ms)",
       "type": "timeseries"
     },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -82,7 +181,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "id": 3,
       "options": {
         "legend": { "calcs": [], "displayMode": "list", "placement": "bottom" },
@@ -99,6 +198,7 @@
       "title": "API Hata Oranı (%)",
       "type": "timeseries"
     },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -116,7 +216,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "id": 4,
       "options": {
         "legend": { "calcs": ["max", "last"], "displayMode": "table", "placement": "bottom" },
@@ -133,6 +233,7 @@
       "title": "AI Kuyruk Derinliği (RabbitMQ)",
       "type": "timeseries"
     },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -142,7 +243,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "id": 5,
       "options": {
         "legend": { "calcs": ["last"], "displayMode": "table", "placement": "bottom" },
@@ -165,6 +266,7 @@
       "title": "Veritabanı Bağlantıları",
       "type": "timeseries"
     },
+
     {
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
@@ -182,7 +284,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "id": 6,
       "options": {
         "colorMode": "background",
@@ -202,7 +304,64 @@
       ],
       "title": "Şu An İşlenen İstekler",
       "type": "stat"
+    },
+
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "id": 10,
+      "options": {
+        "barWidth": 0.8,
+        "groupWidth": 0.7,
+        "legend": { "calcs": ["sum"], "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "single" },
+        "xTickLabelRotation": -30,
+        "xTickLabelSpacing": 0
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sort_desc(sum by (action) (http_requests_received_total{job=\"kargoguard-api\"}))",
+          "legendFormat": "{{action}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ],
+      "title": "API İstekleri — Endpoint Bazlı",
+      "type": "barchart"
+    },
+
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "id": 11,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{container=\"kargoguard-api\"}",
+          "refId": "A"
+        }
+      ],
+      "title": "KargoGuard API Logları",
+      "type": "logs"
     }
+
   ],
   "refresh": "5s",
   "schemaVersion": 38,
@@ -211,5 +370,5 @@
   "timezone": "browser",
   "title": "KargoGuard – Sistem İzleme",
   "uid": "kargoguard-overview",
-  "version": 1
+  "version": 2
 }

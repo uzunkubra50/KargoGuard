@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: PostgreSQL
+    type: postgres
+    uid: postgres
+    url: postgres:5432
+    user: kargo_admin
+    secureJsonData:
+      password: kargo_password
+    jsonData:
+      database: kargoguard_db
+      sslmode: disable
+      postgresVersion: 1400
+    access: proxy
+    isDefault: false
+    editable: true
