@@ -8,6 +8,13 @@ const CargoDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showOnlyDamaged, setShowOnlyDamaged] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') setSelectedItem(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const fetchResults = async () => {
     setLoading(true);
@@ -192,6 +199,7 @@ const CargoDashboard = () => {
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Teslimat</th>
                   <th className="px-6 py-4 text-left text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Web3 Kanıtı</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Tarih</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Detay</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800">
@@ -303,6 +311,16 @@ const CargoDashboard = () => {
                         <span className="text-slate-700 dark:text-slate-300 font-medium">{new Date(item.processedAt).toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul" })}</span>
                         <div className="text-slate-400 dark:text-slate-500 text-xs mt-0.5">{new Date(item.processedAt).toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul" })}</div>
                       </td>
+
+                      {/* Detay Butonu */}
+                      <td className="px-6 py-4 whitespace-nowrap text-center">
+                        <button
+                          onClick={() => setSelectedItem(item)}
+                          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-100 border border-slate-200 text-slate-700 hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-indigo-900/40 dark:hover:text-indigo-300 transition-all"
+                        >
+                          Detay
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}
@@ -311,6 +329,128 @@ const CargoDashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Gemini Detay Modalı */}
+      {selectedItem && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => setSelectedItem(null)}
+        >
+          <div
+            className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 w-full max-w-lg max-h-[90vh] overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-700">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  Kargo #{selectedItem.id} — Detaylı Analiz
+                </h2>
+                <p className="text-xs text-slate-400 mt-1 truncate max-w-[320px]">{selectedItem.imageName}</p>
+              </div>
+              <button
+                onClick={() => setSelectedItem(null)}
+                className="p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+              >
+                <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {/* Gemini AI Analizi */}
+              {(selectedItem.geminiHasarTuru || selectedItem.geminiAciklama) ? (
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gemini AI Analizi</h3>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    {selectedItem.geminiHasarTuru && (
+                      <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+                        <div className="text-xs text-slate-400 mb-1">Hasar Türü</div>
+                        <div className="font-bold text-slate-800 dark:text-white text-sm">{selectedItem.geminiHasarTuru}</div>
+                      </div>
+                    )}
+                    {selectedItem.geminiSiddet && (
+                      <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+                        <div className="text-xs text-slate-400 mb-1">Şiddet</div>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black ${
+                          selectedItem.geminiSiddet === 'Ağır' || selectedItem.geminiSiddet === 'major'
+                            ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400'
+                            : selectedItem.geminiSiddet === 'Orta' || selectedItem.geminiSiddet === 'moderate'
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400'
+                        }`}>
+                          {selectedItem.geminiSiddet}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {selectedItem.geminiGuvenSkoru != null && (
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3">
+                      <span className="text-xs text-slate-400">Güven Skoru</span>
+                      <span className="font-extrabold text-slate-800 dark:text-white">
+                        %{(selectedItem.geminiGuvenSkoru * 100).toFixed(1)}
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedItem.geminiAciklama && (
+                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4">
+                      <div className="text-xs text-slate-400 mb-2">AI Açıklaması</div>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{selectedItem.geminiAciklama}</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-6 text-slate-400 text-sm">
+                  Bu kargo için Gemini AI analizi mevcut değil.
+                </div>
+              )}
+
+              {/* Sorumluluk Notu */}
+              {selectedItem.liabilityNote && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Sorumluluk Notu</h3>
+                  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+                    <p className="text-sm text-amber-800 dark:text-amber-300">{selectedItem.liabilityNote}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Ek Özellikler */}
+              {(selectedItem.isFragile || selectedItem.securityBreach) && (
+                <div className="flex flex-wrap gap-2">
+                  {selectedItem.isFragile && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-50 border border-purple-200 text-purple-700 dark:bg-purple-900/30 dark:border-purple-800 dark:text-purple-400">
+                      Kırılgan Ürün
+                    </span>
+                  )}
+                  {selectedItem.securityBreach && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-red-100 border border-red-300 text-red-700 dark:bg-red-900/30 dark:border-red-800 dark:text-red-400">
+                      Güvenlik İhlali Tespit Edildi
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Teslimat AI Analizi */}
+              {selectedItem.deliveryFinalDecision && (
+                <div>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Teslimat AI Analizi</h3>
+                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 flex items-center justify-between">
+                    <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{selectedItem.deliveryFinalDecision}</span>
+                    {selectedItem.deliveryAiConfidence != null && (
+                      <span className="text-xs text-slate-400">%{(selectedItem.deliveryAiConfidence * 100).toFixed(1)} güven</span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
