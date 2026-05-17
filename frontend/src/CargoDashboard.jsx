@@ -13,7 +13,7 @@ const CargoDashboard = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API}/api/cargo/results`);
+      const response = await fetch(`${API}/api/v1/cargo/results`);
       if (!response.ok) throw new Error("Veriler alınırken bir hata oluştu.");
       const data = await response.json();
       setResults(data);
