@@ -1,10 +1,14 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
+using System.Threading.RateLimiting;
 using Asp.Versioning;
 using KargoGuard.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Prometheus;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +41,12 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Redis — IConnectionMultiplexer singleton
+var redisConnStr = builder.Configuration["Redis:ConnectionString"] ?? "localhost:6379,abortConnect=false";
+var redisOptions = ConfigurationOptions.Parse(redisConnStr);
+redisOptions.AbortOnConnectFail = false;
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisOptions));
+
 // JWT Kimlik Doğrulama
 var jwtKey = builder.Configuration["Jwt:Key"]!;
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -53,9 +63,56 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
             ClockSkew                = TimeSpan.Zero
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async ctx =>
+            {
+                var jti = ctx.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+                if (jti is not null)
+                {
+                    var blacklist = ctx.HttpContext.RequestServices
+                        .GetRequiredService<ITokenBlacklistService>();
+                    if (await blacklist.IsBlacklistedAsync(jti))
+                        ctx.Fail("Token geçersizleştirilmiş.");
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
+
+// Rate Limiting (yerleşik .NET 7+ middleware)
+builder.Services.AddRateLimiter(opts =>
+{
+    opts.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Kimlik doğrulanmış endpoint'ler — şirkete göre 100 istek/dk
+    opts.AddPolicy("per-company", ctx =>
+    {
+        var key = ctx.User.FindFirst("company_id")?.Value
+               ?? ctx.Connection.RemoteIpAddress?.ToString()
+               ?? "unknown";
+        return RateLimitPartition.GetSlidingWindowLimiter(key, _ => new SlidingWindowRateLimiterOptions
+        {
+            PermitLimit       = 100,
+            Window            = TimeSpan.FromMinutes(1),
+            SegmentsPerWindow = 4,
+            QueueLimit        = 0,
+        });
+    });
+
+    // Login / tracking-access — IP başına 20 istek/dk (brute-force koruması)
+    opts.AddPolicy("per-ip", ctx =>
+    {
+        var ip = ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(ip, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window      = TimeSpan.FromMinutes(1),
+            QueueLimit  = 0,
+        });
+    });
+});
 
 // API Versiyonlama
 builder.Services.AddApiVersioning(opt =>
@@ -77,6 +134,7 @@ builder.Services.AddScoped<IMinioService, MinioService>();
 builder.Services.AddSingleton<IRabbitMQPublisher, RabbitMQPublisher>();
 builder.Services.AddSingleton<IBlockchainService, BlockchainService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddSingleton<ITokenBlacklistService, TokenBlacklistService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -123,6 +181,9 @@ app.UseSwaggerUI(c =>
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Rate limiter auth'tan sonra — company_id claim'i kullanabilsin
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapMetrics("/metrics");   // Prometheus scrape endpoint — auth gerektirmez

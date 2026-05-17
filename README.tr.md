@@ -12,6 +12,10 @@
 
 <br/>
 
+[![Canlı Demo](https://img.shields.io/badge/Canlı%20Demo-kargo--guard.vercel.app-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://kargo-guard.vercel.app)
+
+<br/>
+
 ![.NET](https://img.shields.io/badge/.NET_10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
 ![Python](https://img.shields.io/badge/Python_3.10-3776AB?style=flat-square&logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React_18-61DAFB?style=flat-square&logo=react&logoColor=black)
@@ -19,6 +23,8 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![Ethereum](https://img.shields.io/badge/Ethereum_Sepolia-3C3C3D?style=flat-square&logo=ethereum&logoColor=white)
 ![RabbitMQ](https://img.shields.io/badge/RabbitMQ-FF6600?style=flat-square&logo=rabbitmq&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis_7-DC382D?style=flat-square&logo=redis&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=flat-square&logo=vercel&logoColor=white)
 
 </div>
 
@@ -84,15 +90,16 @@ Darbe anında kaydedilen G-Force sensör verisi, görsel kayıtların yanında f
 
 | Katman | Teknoloji |
 |---|---|
-| Backend API | C# .NET 10, Dapper, JWT Bearer, Swashbuckle |
+| Backend API | C# .NET 10, Dapper, JWT Bearer, Swashbuckle, API Versiyonlama |
 | Yapay Zeka | Python 3.10, YOLOv8, Roboflow, Google Gemini 2.5 Flash |
-| Frontend | React 18, Vite, TailwindCSS, Recharts |
+| Frontend | React 18, Vite, TailwindCSS, Recharts — Vercel'de yayında |
 | Mobil | React Native, Expo |
 | Mesaj Kuyruğu | RabbitMQ 3 |
 | Veritabanı | PostgreSQL 15 |
 | Nesne Depolama | MinIO (S3 uyumlu) |
+| Önbellek / Güvenlik | Redis 7 — token kara liste, hız sınırı |
 | Blockchain | Solidity, Hardhat, Nethereum, Ethereum Sepolia |
-| Altyapı | Docker Compose |
+| Altyapı | Docker Compose, ngrok (tünel) |
 
 ---
 
@@ -141,7 +148,24 @@ cd frontend
 npm install && npm run dev
 ```
 
-Tüm servisler çalışmaya başladıktan sonra **http://localhost:5173** adresini açın.
+Tüm servisler çalışmaya başladıktan sonra **http://localhost:5173** adresini açın ya da canlı demoyu **https://kargo-guard.vercel.app** adresinde ziyaret edin.
+
+### Mobil Kurulum
+
+Mobil uygulama API adresini ortam değişkeninden okur. Örnek dosyayı kopyalayıp adresinizi girin:
+
+```bash
+cp mobile/.env.example mobile/.env
+# mobile/.env dosyasını düzenleyin — EXPO_PUBLIC_API_URL değerini girin
+```
+
+Demo için yerel API'yi ngrok ile dışarıya açın:
+
+```bash
+ngrok http --domain=mycologic-overdistantly-iva.ngrok-free.dev 5229
+```
+
+Statik domain hiç değişmez — `mobile/.env` kalıcı olarak `https://mycologic-overdistantly-iva.ngrok-free.dev` değerine ayarlı kalır.
 
 ---
 
@@ -152,19 +176,22 @@ KargoGuard/
 ├── backend/
 │   ├── KargoGuard.API/          # C# .NET Web API
 │   │   ├── Controllers/         # AuthController, CargoController
-│   │   ├── Services/            # Auth, Blockchain, MinIO, RabbitMQ, DB
+│   │   ├── Services/            # Auth, Blockchain, MinIO, RabbitMQ, TokenKaraListe
 │   │   └── Models/
 │   └── KargoGuard.AI/           # Python yapay zeka işçisi
 │       ├── consumer.py          # RabbitMQ tüketici + çıkarım hattı
 │       └── yolov8n.pt           # YOLOv8 model ağırlıkları
-├── frontend/                    # React dashboard
+├── frontend/                    # React dashboard (Vercel'de yayında)
+│   ├── .env.example             # VITE_API_URL şablonu
 │   └── src/
 │       ├── App.jsx              # Kimlik doğrulama + rol yönlendirme
 │       └── CargoDashboard.jsx   # Admin paneli
 ├── mobile/                      # React Native uygulama (Expo)
+│   ├── .env.example             # EXPO_PUBLIC_API_URL şablonu
+│   └── config.js                # API adresini env'den okur
 ├── web3/                        # Solidity akıllı kontrat + Hardhat
 │   └── contracts/CargoGuard.sol
-└── docker-compose.yml           # PostgreSQL · RabbitMQ · MinIO
+└── docker-compose.yml           # PostgreSQL · RabbitMQ · MinIO · Redis
 ```
 
 ---

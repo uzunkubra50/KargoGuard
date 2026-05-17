@@ -4,7 +4,9 @@ using System.Text;
 using Asp.Versioning;
 using KargoGuard.API.Models;
 using KargoGuard.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 
 namespace KargoGuard.API.Controllers;
@@ -15,12 +17,18 @@ namespace KargoGuard.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly ITokenBlacklistService _blacklist;
     private readonly IConfiguration _config;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, IConfiguration config, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        ITokenBlacklistService blacklist,
+        IConfiguration config,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
+        _blacklist   = blacklist;
         _config      = config;
         _logger      = logger;
     }
@@ -29,6 +37,7 @@ public class AuthController : ControllerBase
     /// Kullanıcı adı ve şifre ile giriş yapar, JWT token döner.
     /// </summary>
     [HttpPost("login")]
+    [EnableRateLimiting("per-ip")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken cancellationToken)
@@ -49,9 +58,37 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Mevcut JWT token'ı geçersizleştirir (sunucu taraflı logout).
+    /// </summary>
+    [HttpPost("logout")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> Logout()
+    {
+        var jti = User.FindFirstValue(JwtRegisteredClaimNames.Jti);
+        var exp = User.FindFirstValue(JwtRegisteredClaimNames.Exp);
+
+        if (jti is null)
+            return BadRequest(new { message = "Token geçersiz." });
+
+        var ttl = TimeSpan.FromHours(8);
+        if (long.TryParse(exp, out var expUnix))
+        {
+            var remaining = DateTimeOffset.FromUnixTimeSeconds(expUnix) - DateTimeOffset.UtcNow;
+            if (remaining > TimeSpan.Zero) ttl = remaining;
+        }
+
+        await _blacklist.BlacklistAsync(jti, ttl);
+        _logger.LogInformation("Çıkış yapıldı. Kullanıcı: {Username}", User.Identity?.Name);
+        return Ok(new { message = "Çıkış başarılı." });
+    }
+
+    /// <summary>
     /// Müşteri kargo takibi için hesap gerektirmeyen JWT üretir.
     /// </summary>
     [HttpPost("tracking-access")]
+    [EnableRateLimiting("per-ip")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult TrackingAccess([FromBody] TrackingAccessRequest request)
