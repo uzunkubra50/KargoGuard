@@ -112,9 +112,26 @@ const EnterpriseLogin = ({ onLogin }) => {
 
   const activeRole = ROLES.find(r => r.key === role);
 
+  const QuickLogin = ({ credentials }) => (
+    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 space-y-2">
+      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">⚡ Demo — Hızlı Giriş</p>
+      <div className="flex flex-wrap gap-2">
+        {credentials.map((c, i) => (
+          <button key={i} type="button" onClick={c.action}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-indigo-400 hover:text-indigo-600 transition-all shadow-sm">
+            {c.icon} {c.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   const RightForm = () => {
     if (role === 'admin') return (
       <form onSubmit={login} className="space-y-4">
+        <QuickLogin credentials={[
+          { icon: '🛡', label: 'Admin Demo', action: () => { setAdminEmail('admin@kargoguard.com'); setAdminPwd('admin123'); } },
+        ]} />
         <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@kargoguard.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
         <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} />
         <button type="submit" disabled={!!loadingRole}
@@ -130,6 +147,10 @@ const EnterpriseLogin = ({ onLogin }) => {
     );
     if (role === 'kurye') return (
       <form onSubmit={login} className="space-y-4">
+        <QuickLogin credentials={[
+          { icon: '🚴', label: 'KRY-00142', action: () => { setKuryeId('KRY-00142'); setKuryePwd('kurye123'); } },
+          { icon: '🚴', label: 'KRY-00215', action: () => { setKuryeId('KRY-00215'); setKuryePwd('kurye123'); } },
+        ]} />
         <InputField label="Kurye ID veya telefon" icon="📋" placeholder="KRY-00142" value={kuryeId} onChange={e => setKuryeId(e.target.value)} />
         <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••" value={kuryePwd} onChange={e => setKuryePwd(e.target.value)} />
         <button type="submit" disabled={!!loadingRole}
