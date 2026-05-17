@@ -38,7 +38,8 @@ const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5229';
 
 const authHeaders = () => ({
-  'Authorization': `Bearer ${localStorage.getItem('kg_token') ?? ''}`
+  'Authorization': `Bearer ${localStorage.getItem('kg_token') ?? ''}`,
+  'ngrok-skip-browser-warning': '1'
 });
 
 const EnterpriseLogin = ({ onLogin }) => {
@@ -62,7 +63,7 @@ const EnterpriseLogin = ({ onLogin }) => {
       if (role === 'musteri') {
         res = await fetch(`${API}/api/v1/auth/tracking-access`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
           body: JSON.stringify({ trackCode: trackCode || 'MISAFIR', phone: trackPhone }),
         });
       } else {
@@ -70,7 +71,7 @@ const EnterpriseLogin = ({ onLogin }) => {
         const password = role === 'admin' ? adminPwd   : kuryePwd;
         res = await fetch(`${API}/api/v1/auth/login`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
           body: JSON.stringify({ username, password }),
         });
       }
