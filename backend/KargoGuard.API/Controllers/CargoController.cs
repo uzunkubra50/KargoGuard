@@ -667,4 +667,15 @@ public class CargoController : ControllerBase
             return StatusCode(500, new { message = "Blokzincir hatası", error = ex.Message });
         }
     }
+
+    [HttpGet("image/{filename}")]
+    [AllowAnonymous]
+    [DisableRateLimiting]
+    public async Task<IActionResult> GetImage(string filename, CancellationToken cancellationToken)
+    {
+        var result = await _minioService.GetImageAsync(filename, cancellationToken);
+        if (result is null) return NotFound();
+        var (stream, contentType) = result.Value;
+        return File(stream, contentType);
+    }
 }
