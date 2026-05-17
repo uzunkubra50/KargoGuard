@@ -36,8 +36,8 @@ const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }
 );
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:5229';
-const MINIO = import.meta.env.VITE_MINIO_URL ?? 'http://localhost:9000';
-const NO_IMG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f1f5f9' rx='12'/%3E%3Cpath d='M70 80 L100 64 L130 80 L130 120 L100 136 L70 120 Z' fill='none' stroke='%2394a3b8' stroke-width='3'/%3E%3Cpath d='M70 80 L100 96 L130 80' fill='none' stroke='%2394a3b8' stroke-width='3'/%3E%3Cline x1='100' y1='96' x2='100' y2='136' stroke='%2394a3b8' stroke-width='3'/%3E%3Ctext x='100' y='158' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%2394a3b8'%3EFoto%C4%9Fraf%20Yok%3C%2Ftext%3E%3C%2Fsvg%3E`;
+const imgSrc = (filename) => filename ? `${API}/api/v1/cargo/image/${filename}` : null;
+const NO_IMG =`data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f1f5f9' rx='12'/%3E%3Cpath d='M70 80 L100 64 L130 80 L130 120 L100 136 L70 120 Z' fill='none' stroke='%2394a3b8' stroke-width='3'/%3E%3Cpath d='M70 80 L100 96 L130 80' fill='none' stroke='%2394a3b8' stroke-width='3'/%3E%3Cline x1='100' y1='96' x2='100' y2='136' stroke='%2394a3b8' stroke-width='3'/%3E%3Ctext x='100' y='158' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%2394a3b8'%3EFoto%C4%9Fraf%20Yok%3C%2Ftext%3E%3C%2Fsvg%3E`;
 
 const authHeaders = () => ({
   'Authorization': `Bearer ${localStorage.getItem('kg_token') ?? ''}`,
@@ -350,7 +350,7 @@ const KuryeView = ({ onLogout }) => {
               <div key={c.id} className="bg-white rounded-2xl border border-slate-200 p-5 flex items-center justify-between hover:shadow-md transition">
                 <div className="flex items-center gap-4">
                   {c.imageName && (
-                    <img src={`${MINIO}/kargo-images/${c.imageName}`} className="w-14 h-14 rounded-xl object-cover border border-slate-100" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
+                    <img src={imgSrc(c.imageName) ?? NO_IMG} className="w-14 h-14 rounded-xl object-cover border border-slate-100" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
                   )}
                   <div>
                     <div className="font-bold text-slate-900">Kargo #{c.id}</div>
@@ -963,7 +963,7 @@ export default function CargoDashboard() {
                     <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${t.blueBadge}`}>1. Aşama: Dış Yüzey</div>
                     
                     <div className={`w-full aspect-video rounded-xl overflow-hidden border relative transition-shadow ${t.innerImageBg} ${t.tableBorder}`}>
-                      <img src={`${MINIO}/kargo-images/${selectedCargo.imageName}`} alt="Dış" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
+                      <img src={imgSrc(selectedCargo.imageName) ?? NO_IMG} alt="Dış" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
                     </div>
 
                     <div className={`mt-5 w-full border rounded-xl p-4 text-center ${t.innerBoxBg} ${t.tableBorder}`}>
@@ -1012,7 +1012,7 @@ export default function CargoDashboard() {
                     <div className={`w-full aspect-video rounded-xl overflow-hidden border relative flex items-center justify-center transition-shadow ${t.innerImageBg} ${t.tableBorder}`}>
                       {(innerAnalysis?.photoUrl || selectedCargo.deliveryPhotoUrl) ? (
                         <>
-                          <img src={`${MINIO}/kargo-images/${innerAnalysis?.photoUrl || selectedCargo.deliveryPhotoUrl}`} className="w-full h-full object-cover opacity-90" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
+                          <img src={imgSrc(innerAnalysis?.photoUrl || selectedCargo.deliveryPhotoUrl) ?? NO_IMG} className="w-full h-full object-cover opacity-90" onError={e => { e.currentTarget.onerror = null; e.currentTarget.src = NO_IMG; }} />
                           {isInnerDmg && <div className="absolute inset-0 bg-red-500/20 mix-blend-overlay" />}
                         </>
                       ) : (

@@ -7,6 +7,7 @@ namespace KargoGuard.API.Services;
 public interface IMinioService
 {
     Task<string> UploadImageAsync(IFormFile file, CancellationToken cancellationToken = default);
+    Task<(Stream stream, string contentType)?> GetImageAsync(string objectName, CancellationToken cancellationToken = default);
 }
 
 public class MinioService : IMinioService
@@ -64,6 +65,27 @@ public class MinioService : IMinioService
             _bucketName, objectName);
 
         return objectName;
+    }
+
+    public async Task<(Stream stream, string contentType)?> GetImageAsync(string objectName, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var ms = new MemoryStream();
+            string? contentType = null;
+            var getArgs = new GetObjectArgs()
+                .WithBucket(_bucketName)
+                .WithObject(objectName)
+                .WithCallbackStream((s, ct) => { s.CopyTo(ms); return Task.CompletedTask; });
+            var stat = await _minioClient.GetObjectAsync(getArgs, cancellationToken);
+            contentType = stat.ContentType;
+            ms.Position = 0;
+            return (ms, contentType ?? "image/jpeg");
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     // ---------------------------------------------------------------
