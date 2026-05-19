@@ -9,7 +9,7 @@ import {
 
 import { API_BASE_URL } from './config';
 
-const API_URL = `${API_BASE_URL}/api/Cargo/upload`;
+const API_URL = `${API_BASE_URL}/api/v1/Cargo/upload`;
 
 /**
  * KURYEPANELİ — Kurye rolü için kargo fotoğrafı çekme ve gönderme ekranı.

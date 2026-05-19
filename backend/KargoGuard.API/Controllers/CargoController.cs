@@ -27,6 +27,9 @@ public class CargoController : ControllerBase
     private int GetCompanyId() =>
         int.TryParse(User.FindFirstValue("company_id"), out var id) ? id : 0;
 
+    private int? GetUserId() =>
+        int.TryParse(User.FindFirstValue("user_id"), out var id) ? id : null;
+
     public CargoController(
         IConfiguration configuration,
         IMinioService minioService,
@@ -57,6 +60,7 @@ public class CargoController : ControllerBase
         IFormFile file,
         [FromForm(Name = "sarsinti_verisi")] string sarsintiVerisiStr = "0",
         [FromForm(Name = "is_fragile")] bool isFragile = false,
+        [FromForm(Name = "cargo_ref_id")] string? cargoRefId = null,
         CancellationToken cancellationToken = default)
     {
         if (file is null || file.Length == 0)
@@ -85,6 +89,8 @@ public class CargoController : ControllerBase
             sarsinti_verisi = sarsintiVerisi,
             is_fragile = isFragile,
             company_id = GetCompanyId(),
+            courier_id = GetUserId(),
+            cargo_ref_id = cargoRefId ?? "",
             status = "Pending"
         };
 
@@ -160,10 +166,16 @@ public class CargoController : ControllerBase
         {
             var connectionString = _configuration.GetConnectionString("DefaultConnection");
             var companyId        = GetCompanyId();
+            var userId           = GetUserId();
+            var isCourier        = User.IsInRole("kurye");
 
             using var connection = new NpgsqlConnection(connectionString);
 
-            var sql = @"
+            var whereClause = isCourier && userId.HasValue
+                ? "WHERE company_id = @CompanyId AND courier_id = @UserId"
+                : "WHERE company_id = @CompanyId";
+
+            var sql = $@"
                 SELECT
                     id                      AS Id,
                     status                  AS Status,
@@ -187,14 +199,15 @@ public class CargoController : ControllerBase
                     gemini_guven_skoru      AS GeminiGuvenSkoru,
                     bbox_json               AS BboxJson,
                     COALESCE(security_breach, false) AS SecurityBreach,
-                    company_id              AS CompanyId
+                    company_id              AS CompanyId,
+                    cargo_ref_id            AS CargoRefId
                 FROM cargo_analysis_results
-                WHERE company_id = @CompanyId
+                {whereClause}
                 ORDER BY processed_at DESC
-                LIMIT 10;
+                LIMIT 50;
             ";
 
-            var results = await connection.QueryAsync<CargoAnalysisResult>(sql, new { CompanyId = companyId });
+            var results = await connection.QueryAsync<CargoAnalysisResult>(sql, new { CompanyId = companyId, UserId = userId });
 
             if (Request.Headers.Accept.Any(value => value?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true))
                 return Content(RenderResultsHtml(results), "text/html; charset=utf-8");
@@ -391,14 +404,16 @@ public class CargoController : ControllerBase
 
         try
         {
-            // 2. Fotoğrafı MinIO'ya Yükle (Dashboard'da görülebilmesi için)
-            var objectName = await _minioService.UploadImageAsync(file, cancellationToken);
-
-            // 3. Fotoğrafı Base64'e çevir (Gemini için)
-            using var ms = new System.IO.MemoryStream();
-            file.OpenReadStream().CopyTo(ms);
-            var imageBase64 = Convert.ToBase64String(ms.ToArray());
+            // 2. Dosyayı belleğe oku — MinIO ve Gemini aynı baytları kullanır, stream 2 kez tüketilmez
+            using var ms = new System.IO.MemoryStream((int)file.Length);
+            await file.CopyToAsync(ms, cancellationToken);
+            var imageBytes  = ms.ToArray();
+            var imageBase64 = Convert.ToBase64String(imageBytes);
             var mimeType    = file.ContentType ?? "image/jpeg";
+
+            // 3. Fotoğrafı MinIO'ya Yükle (Dashboard'da görülebilmesi için)
+            ms.Position = 0;
+            var objectName = await _minioService.UploadImageAsync(file, cancellationToken);
 
             // 4. Gemini API Key
             var geminiKey = _configuration["Gemini:ApiKey"];
@@ -436,9 +451,9 @@ public class CargoController : ControllerBase
 
             var jsonBody  = System.Text.Json.JsonSerializer.Serialize(requestBody);
             
-            // 6. Gemini'ye istek at (3 Kez Tekrar Deneme Mekanizması)
+            // 6. Gemini'ye istek at (2 deneme, hızlı fail-fast)
             using var httpClient = new System.Net.Http.HttpClient();
-            httpClient.Timeout = TimeSpan.FromSeconds(30);
+            httpClient.Timeout = TimeSpan.FromSeconds(25);
 
             _logger.LogInformation("Gemini API'ye müşteri hasar analizi isteği gönderiliyor. Kargo Ref: {CargoRef}", cargo_ref_id);
 
@@ -446,74 +461,74 @@ public class CargoController : ControllerBase
             string geminiRaw = "";
             bool success = false;
 
-            for (int i = 0; i < 3; i++)
+            for (int i = 0; i < 2; i++)
             {
-                var reqContent = new System.Net.Http.StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
-                geminiResponse = await httpClient.PostAsync(geminiUrl, reqContent, cancellationToken);
-                geminiRaw      = await geminiResponse.Content.ReadAsStringAsync(cancellationToken);
-
-                if (geminiResponse.IsSuccessStatusCode)
+                try
                 {
-                    success = true;
-                    break;
+                    var reqContent = new System.Net.Http.StringContent(jsonBody, System.Text.Encoding.UTF8, "application/json");
+                    geminiResponse = await httpClient.PostAsync(geminiUrl, reqContent, cancellationToken);
+                    geminiRaw      = await geminiResponse.Content.ReadAsStringAsync(cancellationToken);
+
+                    if (geminiResponse.IsSuccessStatusCode)
+                    {
+                        success = true;
+                        break;
+                    }
+
+                    _logger.LogWarning("Gemini API başarısız oldu (Deneme {Retry}). Status: {Status}, Body: {Body}", i + 1, geminiResponse.StatusCode, geminiRaw);
+
+                    if ((int)geminiResponse.StatusCode == 400)
+                    {
+                        _logger.LogError("Gemini API Key geçersiz veya istek hatalı (400). .env dosyasındaki GEMINI_API_KEY'i kontrol edin.");
+                        break;
+                    }
+                    if (geminiResponse.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable &&
+                        geminiResponse.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
+                    {
+                        break;
+                    }
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    _logger.LogWarning("Gemini API zaman aşımı (Deneme {Retry}). Tekrar denenecek.", i + 1);
+                    if (i == 1) break;
                 }
 
-                _logger.LogWarning("Gemini API başarısız oldu (Deneme {Retry}). Status: {Status}, Body: {Body}", i + 1, geminiResponse.StatusCode, geminiRaw);
-
-                if ((int)geminiResponse.StatusCode == 400)
-                {
-                    _logger.LogError("Gemini API Key geçersiz veya istek hatalı (400). .env dosyasındaki GEMINI_API_KEY'i kontrol edin.");
-                    break;
-                }
-                if (geminiResponse.StatusCode != System.Net.HttpStatusCode.ServiceUnavailable &&
-                    geminiResponse.StatusCode != System.Net.HttpStatusCode.TooManyRequests)
-                {
-                    break;
-                }
-
-                await Task.Delay(4000, cancellationToken); // 4 saniye bekle tekrar dene
+                await Task.Delay(2000, cancellationToken); // 2 saniye bekle
             }
 
             if (!success)
             {
-                if (int.TryParse(cargo_ref_id, out int parsedFallbackId))
                 {
                     var connectionString = _configuration.GetConnectionString("DefaultConnection");
                     using var connection = new NpgsqlConnection(connectionString);
+                    var companyId = GetCompanyId();
 
-                    // --- NEW WEB3 CODE FOR FALLBACK ---
                     try
                     {
                         var newStatus = "Manuel İnceleme (API Hatası)";
-                        var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(parsedFallbackId, newStatus, objectName);
-                        
-                        await connection.ExecuteAsync(
-                            "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP, tx_hash = @TxHash, status = @Status WHERE id = @Id",
-                            new
-                            {
-                                Photo = objectName,
-                                Conf = 0.0,
-                                Class = "gemini_unavailable",
-                                Dec = "MANUEL_INCELEME",
-                                TxHash = txHash,
-                                Status = newStatus,
-                                Id = parsedFallbackId
-                            });
+                        var matchedId = await connection.ExecuteScalarAsync<int>(
+                            "SELECT id FROM cargo_analysis_results WHERE cargo_ref_id = @Ref AND company_id = @CompanyId LIMIT 1",
+                            new { Ref = cargo_ref_id, CompanyId = companyId });
+
+                        if (matchedId > 0)
+                        {
+                            var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(matchedId, newStatus, objectName);
+                            await connection.ExecuteAsync(
+                                "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP, tx_hash = @TxHash, status = @Status WHERE id = @Id",
+                                new { Photo = objectName, Conf = 0.0, Class = "gemini_unavailable", Dec = "MANUEL_INCELEME", TxHash = txHash, Status = newStatus, Id = matchedId });
+                        }
                     }
                     catch (Exception web3Ex)
                     {
                         _logger.LogError(web3Ex, "Manuel inceleme durumu için Web3 senkronizasyonu başarısız.");
-                        
                         await connection.ExecuteAsync(
-                            "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP WHERE id = @Id",
-                            new
-                            {
-                                Photo = objectName,
-                                Conf = 0.0,
-                                Class = "gemini_unavailable",
-                                Dec = "MANUEL_INCELEME",
-                                Id = parsedFallbackId
-                            });
+                            @"UPDATE cargo_analysis_results
+                              SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf,
+                                  delivery_ai_class = @Class, delivery_final_decision = @Dec,
+                                  delivery_processed_at = CURRENT_TIMESTAMP
+                              WHERE cargo_ref_id = @Ref AND company_id = @CompanyId",
+                            new { Photo = objectName, Conf = 0.0, Class = "gemini_unavailable", Dec = "MANUEL_INCELEME", Ref = cargo_ref_id, CompanyId = companyId });
                     }
                 }
 
@@ -567,37 +582,45 @@ public class CargoController : ControllerBase
 
             _logger.LogInformation("Karar: {Decision}, Güven: {Conf}", isDamaged ? "HASARLI" : "SAĞLAM", confidence);
 
-            // 9. Sonucu Veritabanına Yaz (Dashboard'da görünsün)
-            if (int.TryParse(cargo_ref_id, out int parsedId))
+            // 9. Sonucu Veritabanına Yaz — cargo_ref_id ile eşleştir
             {
                 var connectionString = _configuration.GetConnectionString("DefaultConnection");
                 using var connection = new NpgsqlConnection(connectionString);
-                var classStr = isDamaged ? "ic_hasar" : "saglamli";
-                var decStr   = isDamaged ? "HASARLI"  : "SAĞLAM";
-                
-                await connection.ExecuteAsync(
-                    "UPDATE cargo_analysis_results SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf, delivery_ai_class = @Class, delivery_final_decision = @Dec, delivery_processed_at = CURRENT_TIMESTAMP WHERE id = @Id",
-                    new { Photo = objectName, Conf = confidence, Class = classStr, Dec = decStr, Id = parsedId }
+                var classStr  = isDamaged ? "ic_hasar" : "saglamli";
+                var decStr    = isDamaged ? "HASARLI"  : "SAĞLAM";
+
+                // cargo_ref_id ile eşleşen kaydı bul — company_id token'dan değil DB'den alınır
+                var affected = await connection.ExecuteAsync(
+                    @"UPDATE cargo_analysis_results
+                      SET delivery_photo_url = @Photo, delivery_ai_confidence = @Conf,
+                          delivery_ai_class = @Class, delivery_final_decision = @Dec,
+                          delivery_processed_at = CURRENT_TIMESTAMP
+                      WHERE cargo_ref_id = @Ref",
+                    new { Photo = objectName, Conf = confidence, Class = classStr,
+                          Dec = decStr, Ref = cargo_ref_id }
                 );
 
-                // --- NEW WEB3 CODE ---
-                try
+                // Eşleşen kayıt bulduysa blockchain'e de yaz
+                if (affected > 0)
                 {
-                    var newStatus = isDamaged ? "Hasarlı Teslimat (Müşteri Bildirimi)" : "Sorunsuz Teslim (Müşteri Onayı)";
-                    var liabilityNote = isDamaged ? "İçerikte hasar tespit edildi. Yetersiz paketleme veya dış darbe kaynaklı olabilir." : "Tüm YZ testleri başarılı. Sorunsuz teslimat.";
-                    
-                    var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(parsedId, newStatus, objectName);
-                    
-                    await connection.ExecuteAsync(
-                        "UPDATE cargo_analysis_results SET tx_hash = @TxHash, status = @Status, liability_note = @Note WHERE id = @Id",
-                        new { TxHash = txHash, Status = newStatus, Note = liabilityNote, Id = parsedId }
-                    );
+                    var matchedId = await connection.ExecuteScalarAsync<int>(
+                        "SELECT id FROM cargo_analysis_results WHERE cargo_ref_id = @Ref LIMIT 1",
+                        new { Ref = cargo_ref_id });
+
+                    try
+                    {
+                        var newStatus     = isDamaged ? "Hasarlı Teslimat (Müşteri Bildirimi)" : "Sorunsuz Teslim (Müşteri Onayı)";
+                        var liabilityNote = isDamaged ? "İçerikte hasar tespit edildi." : "Tüm YZ testleri başarılı. Sorunsuz teslimat.";
+                        var txHash        = await _blockchainService.RecordDeliveryToBlockchainAsync(matchedId, newStatus, objectName);
+                        await connection.ExecuteAsync(
+                            "UPDATE cargo_analysis_results SET tx_hash = @TxHash, status = @Status, liability_note = @Note WHERE id = @Id",
+                            new { TxHash = txHash, Status = newStatus, Note = liabilityNote, Id = matchedId });
+                    }
+                    catch (Exception web3Ex)
+                    {
+                        _logger.LogError(web3Ex, "Müşteri hasar kaydı için Web3 Blockchain entegrasyonu başarısız.");
+                    }
                 }
-                catch (Exception web3Ex)
-                {
-                    _logger.LogError(web3Ex, "Müşteri hasar kaydı için Web3 Blockchain entegrasyonu başarısız.");
-                }
-                // ---------------------
             }
 
             return Ok(new

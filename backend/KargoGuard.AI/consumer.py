@@ -313,7 +313,6 @@ def init_db():
             ("delivery_ai_confidence","FLOAT"),
             ("delivery_ai_class",     "TEXT"),
             ("is_fragile",            "BOOLEAN DEFAULT false"),
-            # --- YENİ: Hibrit YOLO + Gemini sütunları ---
             ("gemini_hasar_turu",     "TEXT"),
             ("gemini_siddet",         "TEXT"),
             ("gemini_aciklama",       "TEXT"),
@@ -321,6 +320,8 @@ def init_db():
             ("bbox_json",             "TEXT"),
             ("security_breach",       "BOOLEAN DEFAULT false"),
             ("company_id",            "INT"),
+            ("cargo_ref_id",          "TEXT"),
+            ("courier_id",            "INT"),
         ]
 
         for col_name, col_type in yeni_sutunlar:
@@ -416,6 +417,8 @@ def process_image(ch, method, properties, body):
             sarsinti_verisi = float(data.get("sarsinti_verisi", 0.0))
             is_fragile      = bool(data.get("is_fragile", False))
             company_id      = data.get("company_id") or None
+            cargo_ref_id    = data.get("cargo_ref_id") or None
+            courier_id      = data.get("courier_id") or None
 
             # Gemini sonucu ve güvenlik ihlali (başlangıç değerleri)
             gemini_result  = None
@@ -504,8 +507,8 @@ def process_image(ch, method, properties, body):
                     (image_name, sarsinti_verisi, is_fragile,
                      ai_prediction_class, ai_confidence, final_decision,
                      gemini_hasar_turu, gemini_siddet, gemini_aciklama,
-                     gemini_guven_skoru, bbox_json, security_breach, company_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     gemini_guven_skoru, bbox_json, security_breach, company_id, cargo_ref_id, courier_id)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 image_path,
                 sarsinti_verisi,
@@ -519,7 +522,9 @@ def process_image(ch, method, properties, body):
                 gemini_result.get("guven_skoru")          if gemini_result else None,
                 json.dumps(bbox_dict)                     if bbox_dict else None,
                 security_breach,
-                company_id
+                company_id,
+                cargo_ref_id,
+                courier_id
             ))
             conn.commit()
             cur.close()
@@ -635,7 +640,7 @@ def process_image(ch, method, properties, body):
                 # Webhook → Blockchain kaydı
                 try:
                     requests.post(
-                        "http://localhost:5229/api/cargo/blockchain-sync",
+                        "http://api:8080/api/cargo/blockchain-sync",
                         json={
                             "cargoId":   cargo_id,
                             "status":    new_status,

@@ -9,7 +9,7 @@ import {
 import { API_BASE_URL } from './config';
 
 // customer-upload: Gemini AI ile anlık hasar analizi yapar
-const API_URL = `${API_BASE_URL}/api/Cargo/customer-upload`;
+const API_URL = `${API_BASE_URL}/api/v1/Cargo/customer-upload`;
 
 export default function CustomerPanel({ onBack, token }) {
   const [permission, requestPermission] = useCameraPermissions();

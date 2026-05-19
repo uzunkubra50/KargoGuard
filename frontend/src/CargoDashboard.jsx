@@ -9,6 +9,9 @@ const CargoDashboard = () => {
   const [error, setError] = useState(null);
   const [showOnlyDamaged, setShowOnlyDamaged] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
+  const [searchRef, setSearchRef] = useState('');
+  const [dateFrom, setDateFrom]   = useState('');
+  const [dateTo, setDateTo]       = useState('');
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') setSelectedItem(null); };
@@ -35,6 +38,8 @@ const CargoDashboard = () => {
 
   useEffect(() => {
     fetchResults();
+    const interval = setInterval(fetchResults, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   // İstatistiksel Hesaplamalar
@@ -51,11 +56,23 @@ const CargoDashboard = () => {
 
   // Tablo Filtreleme
   const filteredResults = useMemo(() => {
-    if (showOnlyDamaged) {
-      return results.filter((r) => r.finalDecision === "HASARLI");
-    }
-    return results;
-  }, [results, showOnlyDamaged]);
+    return results.filter((r) => {
+      if (showOnlyDamaged && r.finalDecision !== "HASARLI") return false;
+      if (searchRef.trim()) {
+        const q = searchRef.trim().toLowerCase();
+        if (!(r.cargoRefId ?? '').toLowerCase().includes(q)) return false;
+      }
+      if (dateFrom) {
+        if (new Date(r.processedAt) < new Date(dateFrom)) return false;
+      }
+      if (dateTo) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(r.processedAt) > end) return false;
+      }
+      return true;
+    });
+  }, [results, showOnlyDamaged, searchRef, dateFrom, dateTo]);
 
   // Grafik Verisi
   const pieData = [
@@ -97,6 +114,48 @@ const CargoDashboard = () => {
               {loading ? "Yenileniyor..." : "Yenile"}
             </button>
           </div>
+        </div>
+
+        {/* Filtre Çubuğu */}
+        <div className="bg-white dark:bg-slate-800 px-5 py-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <div className="flex-1 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Takip no ara..."
+              value={searchRef}
+              onChange={e => setSearchRef(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
+            />
+            <span className="text-slate-400 text-sm font-medium">–</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-700"
+            />
+          </div>
+          {(searchRef || dateFrom || dateTo) && (
+            <button
+              onClick={() => { setSearchRef(''); setDateFrom(''); setDateTo(''); }}
+              className="text-xs text-slate-400 hover:text-red-500 dark:hover:text-red-400 font-semibold transition-colors whitespace-nowrap"
+            >
+              Temizle
+            </button>
+          )}
+          <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap sm:ml-2">
+            {filteredResults.length} / {results.length} kayıt
+          </span>
         </div>
 
         {/* Hata Durumu */}
@@ -233,7 +292,7 @@ const CargoDashboard = () => {
                                {item.imageName}
                              </div>
                              <div className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                               ID: #{item.id}
+                               ID: #{item.id}{item.cargoRefId ? ` · Takip: ${item.cargoRefId}` : ''}
                              </div>
                            </div>
                         </div>

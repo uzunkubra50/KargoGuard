@@ -152,9 +152,9 @@ const EnterpriseLogin = ({ onLogin }) => {
   const RightForm = () => {
     if (role === 'admin') return (
       <form onSubmit={login} className="space-y-4">
-        <QuickLogin credentials={[
+        {QuickLogin({ credentials: [
           { icon: '🛡', label: 'Admin Demo', action: () => { setAdminEmail('admin@kargoguard.com'); setAdminPwd('admin123'); } },
-        ]} />
+        ]})}
         <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@kargoguard.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
         <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} />
         <button type="submit" disabled={!!loadingRole}
@@ -170,10 +170,10 @@ const EnterpriseLogin = ({ onLogin }) => {
     );
     if (role === 'kurye') return (
       <form onSubmit={login} className="space-y-4">
-        <QuickLogin credentials={[
+        {QuickLogin({ credentials: [
           { icon: '🚴', label: 'KRY-00142', action: () => { setKuryeId('KRY-00142'); setKuryePwd('kurye123'); } },
           { icon: '🚴', label: 'KRY-00215', action: () => { setKuryeId('KRY-00215'); setKuryePwd('kurye123'); } },
-        ]} />
+        ]})}
         <InputField label="Kurye ID veya telefon" icon="📋" placeholder="KRY-00142" value={kuryeId} onChange={e => setKuryeId(e.target.value)} />
         <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••" value={kuryePwd} onChange={e => setKuryePwd(e.target.value)} />
         <button type="submit" disabled={!!loadingRole}
@@ -286,7 +286,7 @@ const EnterpriseLogin = ({ onLogin }) => {
                   <div className="text-sm font-black text-slate-900">{activeRole.label} girişi</div>
                 </div>
               </div>
-              <RightForm />
+              {RightForm()}
             </div>
 
             {loginError && (
@@ -966,6 +966,12 @@ export default function CargoDashboard() {
                     <h2 className="text-xl font-black tracking-wide">Analiz Raporu</h2>
                     <p className={`text-xs mt-1 flex items-center gap-2 ${t.textMuted}`}>
                       <span className={`font-mono ${dark ? 'text-indigo-400' : 'text-indigo-600'}`}>ID: #{selectedCargo.id}</span>
+                      {selectedCargo.cargoRefId && (
+                        <>
+                          <span>•</span>
+                          <span className={`font-mono font-bold ${dark ? 'text-emerald-400' : 'text-emerald-600'}`}>Takip: {selectedCargo.cargoRefId}</span>
+                        </>
+                      )}
                       <span>•</span>
                       {toTRDate(selectedCargo.processedAt)} {toTRTime(selectedCargo.processedAt)}
                     </p>
@@ -1002,6 +1008,31 @@ export default function CargoDashboard() {
                           ? <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Analizi: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.geminiGuvenSkoru)}</span></p>
                           : <p className={`text-xs mt-3 ${t.textMuted}`}>AI Hibrit Analiz: <span className={`font-bold ${t.textMain}`}>Tamamlandı</span></p>
                       }
+                      {selectedCargo.geminiHasarTuru && (
+                        <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
+                          <div className="flex justify-between text-[10px]">
+                            <span className={t.textMuted}>Hasar Türü</span>
+                            <span className={`font-bold ${t.textMain}`}>{selectedCargo.geminiHasarTuru}</span>
+                          </div>
+                          {selectedCargo.geminiSiddet && (
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className={t.textMuted}>Şiddet</span>
+                              {(() => {
+                                const s = (selectedCargo.geminiSiddet || '').toLowerCase();
+                                const isHigh = ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k));
+                                const isMed  = ['orta','medium','moderate'].some(k => s.includes(k));
+                                const cls = isHigh ? 'bg-red-100 text-red-700 border-red-300'
+                                          : isMed  ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
+                                                   : 'bg-emerald-100 text-emerald-700 border-emerald-300';
+                                return <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cls}`}>{selectedCargo.geminiSiddet}</span>;
+                              })()}
+                            </div>
+                          )}
+                          {selectedCargo.geminiAciklama && !selectedCargo.geminiAciklama.startsWith('Gemini API Hata') && (
+                            <p className={`text-[10px] leading-relaxed ${t.textMuted}`}>{selectedCargo.geminiAciklama}</p>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1057,31 +1088,6 @@ export default function CargoDashboard() {
                             {isGeminiUnavailable ? "MANUEL İNCELEME" : (isInnerDmg ? "HASARLI İÇERİK" : "SAĞLAM İÇERİK")}
                           </span>
                           <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Güven Skoru: <span className={`font-bold ${isGeminiUnavailable ? 'text-orange-500' : t.textMain}`}>{isGeminiUnavailable ? "HATA" : pct(deliveryConf)}</span></p>
-                          {selectedCargo.geminiHasarTuru && (
-                            <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
-                              <div className="flex justify-between text-[10px]">
-                                <span className={t.textMuted}>Hasar Türü</span>
-                                <span className={`font-bold ${t.textMain}`}>{selectedCargo.geminiHasarTuru}</span>
-                              </div>
-                              {selectedCargo.geminiSiddet && (
-                                <div className="flex items-center justify-between text-[10px]">
-                                  <span className={t.textMuted}>Şiddet</span>
-                                  {(() => {
-                                    const s = (selectedCargo.geminiSiddet || '').toLowerCase();
-                                    const isHigh = ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k));
-                                    const isMed  = ['orta','medium','moderate'].some(k => s.includes(k));
-                                    const cls = isHigh ? 'bg-red-100 text-red-700 border-red-300'
-                                              : isMed  ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
-                                                       : 'bg-emerald-100 text-emerald-700 border-emerald-300';
-                                    return <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cls}`}>{selectedCargo.geminiSiddet}</span>;
-                                  })()}
-                                </div>
-                              )}
-                              {selectedCargo.geminiAciklama && (
-                                <p className={`text-[10px] leading-relaxed ${t.textMuted}`}>{selectedCargo.geminiAciklama}</p>
-                              )}
-                            </div>
-                          )}
                         </>
                       )}
                     </div>

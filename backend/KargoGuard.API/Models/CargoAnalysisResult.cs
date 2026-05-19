@@ -29,5 +29,6 @@ public class CargoAnalysisResult
     public string? BboxJson { get; set; }            // YOLO bbox: {"x":..,"y":..,"width":..,"height":..}
     public bool SecurityBreach { get; set; }         // true → kutu açılmış!
     public int? CompanyId { get; set; }
+    public string? CargoRefId { get; set; }
 }
 

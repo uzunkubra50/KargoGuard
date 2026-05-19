@@ -31,12 +31,13 @@ public class AuthService : IAuthService
         // dynamic kullanıyoruz — Dapper ValueTuple ile column name mapping yapmaz
         var user = await conn.QueryFirstOrDefaultAsync(
             new CommandDefinition(
-                "SELECT username, password_hash, role, company_id FROM users WHERE username = @u",
+                "SELECT id, username, password_hash, role, company_id FROM users WHERE username = @u",
                 new { u = request.Username },
                 cancellationToken: cancellationToken));
 
         if (user is null) return null;
 
+        int    storedId        = Convert.ToInt32(user.id);
         string storedHash      = user.password_hash;
         string storedRole      = user.role;
         string storedName      = user.username;
@@ -46,12 +47,12 @@ public class AuthService : IAuthService
             return null;
 
         var expiresAt = DateTime.UtcNow.AddHours(_config.GetValue<int>("Jwt:ExpiresInHours", 8));
-        var token     = GenerateToken(storedName, storedRole, storedCompanyId, expiresAt);
+        var token     = GenerateToken(storedName, storedRole, storedCompanyId, storedId, expiresAt);
 
         return new LoginResponse(token, storedRole, storedName, expiresAt);
     }
 
-    private string GenerateToken(string username, string role, int? companyId, DateTime expiresAt)
+    private string GenerateToken(string username, string role, int? companyId, int userId, DateTime expiresAt)
     {
         var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -62,6 +63,7 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.Name, username),
             new Claim(ClaimTypes.Role, role),
             new Claim("company_id", companyId?.ToString() ?? "0"),
+            new Claim("user_id", userId.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 

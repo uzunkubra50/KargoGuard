@@ -114,9 +114,9 @@ function LoginScreen({ role, onBack, onSuccess }) {
     setLoading(true);
     try {
       if (isCourier) {
-        const res = await fetch(`${API_BASE_URL}/api/Auth/login`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/Auth/login`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
           body:    JSON.stringify({ username: username.trim(), password }),
         });
         if (res.ok) {
@@ -126,9 +126,9 @@ function LoginScreen({ role, onBack, onSuccess }) {
           Alert.alert('Giriş Başarısız', 'Kullanıcı adı veya şifre hatalı.');
         }
       } else {
-        const res = await fetch(`${API_BASE_URL}/api/Auth/tracking-access`, {
+        const res = await fetch(`${API_BASE_URL}/api/v1/Auth/tracking-access`, {
           method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': 'true' },
           body:    JSON.stringify({ trackCode: trackCode.trim() }),
         });
         if (res.ok) {
