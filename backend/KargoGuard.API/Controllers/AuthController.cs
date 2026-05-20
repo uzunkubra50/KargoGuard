@@ -86,15 +86,51 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Müşteri kargo takibi için hesap gerektirmeyen JWT üretir.
+    /// Takip kodu + telefon numarası DB'deki kayıtla eşleşmelidir.
     /// </summary>
     [HttpPost("tracking-access")]
     [EnableRateLimiting("per-ip")]
     [ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult TrackingAccess([FromBody] TrackingAccessRequest request)
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<IActionResult> TrackingAccess([FromBody] TrackingAccessRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.TrackCode))
             return BadRequest(new { message = "Takip kodu boş olamaz." });
+
+        var connectionString = _config.GetConnectionString("DefaultConnection");
+        using var connection = new Npgsql.NpgsqlConnection(connectionString);
+
+        var exists = await Dapper.SqlMapper.ExecuteScalarAsync<bool>(connection,
+            "SELECT EXISTS(SELECT 1 FROM cargo_analysis_results WHERE cargo_ref_id = @TrackCode)",
+            new { TrackCode = request.TrackCode });
+
+        if (!exists)
+        {
+            _logger.LogWarning("Takip kodu bulunamadı: {TrackCode}", request.TrackCode);
+            return Unauthorized(new { message = "Bu takip koduna ait kargo bulunamadı." });
+        }
+
+        // Telefon doğrulaması: sadece DB'de telefon kayıtlıysa kontrol et
+        var dbPhone = await Dapper.SqlMapper.ExecuteScalarAsync<string?>(connection,
+            "SELECT customer_phone FROM cargo_analysis_results WHERE cargo_ref_id = @TrackCode LIMIT 1",
+            new { TrackCode = request.TrackCode });
+
+        if (!string.IsNullOrWhiteSpace(dbPhone))
+        {
+            if (string.IsNullOrWhiteSpace(request.Phone))
+                return BadRequest(new { message = "Telefon numarası zorunludur." });
+
+            var normalizedPhone = new string(request.Phone.Where(char.IsDigit).ToArray());
+            var dbNormalized    = new string(dbPhone.Where(char.IsDigit).ToArray());
+            if (dbNormalized != normalizedPhone)
+            {
+                _logger.LogWarning("Telefon eşleşmedi. Takip: {TrackCode}, Girilen: {Phone}", request.TrackCode, request.Phone);
+                return Unauthorized(new { message = "Telefon numarası takip koduyla eşleşmiyor." });
+            }
+        }
+
+        _logger.LogInformation("Müşteri doğrulandı. Takip: {TrackCode}", request.TrackCode);
 
         var expiresAt = DateTime.UtcNow.AddHours(2);
         var key       = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));

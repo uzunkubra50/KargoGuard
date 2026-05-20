@@ -8,7 +8,6 @@ import {
 
 import { API_BASE_URL } from './config';
 
-// customer-upload: Gemini AI ile anlık hasar analizi yapar
 const API_URL = `${API_BASE_URL}/api/v1/Cargo/customer-upload`;
 
 export default function CustomerPanel({ onBack, token }) {
@@ -61,33 +60,24 @@ export default function CustomerPanel({ onBack, token }) {
   // ── API Gönderimi ─────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!photo) {
-      Alert.alert('⚠️ Fotoğraf Gerekli', 'Lütfen önce hasarlı ürünün fotoğrafını çekin.');
+      Alert.alert('⚠️ Fotoğraf Gerekli', 'Lütfen önce kargo içeriğinin fotoğrafını çekin.');
       return;
     }
-    const idNum = parseInt(cargoId.trim(), 10);
-    if (!cargoId.trim() || isNaN(idNum) || idNum <= 0) {
-      Alert.alert('⚠️ Geçersiz Takip No', 'Lütfen sistemdeki kargo ID numarasını (örn: 7) girin.');
+    if (!cargoId.trim()) {
+      Alert.alert('⚠️ Takip No Gerekli', 'Lütfen kargo takip numaranızı girin.');
       return;
     }
 
     setLoading(true);
-    console.log('🚀 Müşteri hasar bildirimi gönderiliyor...');
-    console.log('📍 Hedef:', API_URL);
-    console.log('📦 Kargo No:', cargoId.trim());
-
     try {
       const formData = new FormData();
       formData.append('file', {
         uri:  photo.uri,
-        name: `hasar_${idNum}_${Date.now()}.jpg`,
+        name: `teslimat_${cargoId.trim()}_${Date.now()}.jpg`,
         type: 'image/jpeg',
       });
-      // customer-upload endpoint'i cargo_ref_id string bekler
       formData.append('cargo_ref_id', cargoId.trim());
 
-      // ÖNEMLİ: Content-Type header'ı manuel yazılmıyor!
-      // FormData kullanımında React Native bunu otomatik ayarlar.
-      // Sadece ngrok bypass header'ı ekliyoruz.
       const res = await fetch(API_URL, {
         method: 'POST',
         body:   formData,
@@ -101,30 +91,21 @@ export default function CustomerPanel({ onBack, token }) {
 
       if (res.ok) {
         if (contentType.includes('application/json')) {
-          const result = await res.json();
-          console.log('✅ Sunucu Yanıtı:', result);
           Alert.alert(
-            '✅ Hasar Bildirimi Gönderildi!',
-            `Kargo #${idNum} için hasar fotoğrafınız alındı.\n\nYapay zeka analizi başlatıldı. Dashboard'dan sonucu takip edebilirsiniz.`
+            '✅ Teslimat Onaylandı!',
+            `Kargo "${cargoId.trim()}" içerik fotoğrafınız AI analizine gönderildi.`
           );
-          // Formu sıfırla
           setPhoto(null);
           setCargoId('');
         } else {
-          // Sunucu 200 döndürdü ama JSON değil (ngrok uyarı sayfası olabilir)
-          console.warn('⚠️ Sunucu JSON yerine HTML döndürdü.');
           Alert.alert('Sunucu Hatası', 'Ngrok bağlantısı sorunlu görünüyor. Lütfen URL\'yi kontrol edin.');
         }
       } else {
-        console.error('❌ HTTP Hata Kodu:', res.status);
-        Alert.alert('Sunucu Hatası', `İstek ${res.status} koduyla reddedildi.`);
+        const body = await res.json().catch(() => ({}));
+        Alert.alert('Hata', body.message || `Sunucu hatası (${res.status})`);
       }
-    } catch (err) {
-      console.error('🔥 Bağlantı Hatası:', err);
-      Alert.alert(
-        'Bağlantı Kurulamadı',
-        'Sunucuya ulaşılamıyor. Lütfen internet bağlantınızı veya uygulama URL\'sini kontrol edin.'
-      );
+    } catch {
+      Alert.alert('Bağlantı Kurulamadı', 'Sunucuya ulaşılamıyor.');
     } finally {
       setLoading(false);
     }
@@ -140,7 +121,7 @@ export default function CustomerPanel({ onBack, token }) {
         {/* Overlay katmanı */}
         <View style={[StyleSheet.absoluteFill, { justifyContent: 'space-between' }]} pointerEvents="box-none">
           <View style={s.camOverlay}>
-            <Text style={s.camTitle}>📸 Hasarlı Ürünü Çerçeveleyip Çekin</Text>
+            <Text style={s.camTitle}>📸 Kutu İçeriğini Çerçeveleyip Çekin</Text>
             <View style={s.camFrame} />
             <Text style={s.camHint}>Ürünün tamamı görünür olmalıdır</Text>
           </View>
@@ -169,8 +150,8 @@ export default function CustomerPanel({ onBack, token }) {
           <Text style={s.backBtnText}>← Geri</Text>
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={s.headerTitle}>⚠️ Hasar Bildirimi</Text>
-          <Text style={s.headerSub}>KargoGuard · Müşteri Hizmetleri</Text>
+          <Text style={s.headerTitle}>📦 Teslimat Kontrolü</Text>
+          <Text style={s.headerSub}>KargoGuard · Müşteri Paneli</Text>
         </View>
         <View style={{ width: 60 }} />
       </View>
@@ -181,7 +162,7 @@ export default function CustomerPanel({ onBack, token }) {
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>ℹ️</Text>
           <Text style={s.infoText}>
-            Kargonuzu açtığınızda ürünün hasarlı olduğunu gördüyseniz, aşağıdaki formu doldurup bize iletin. Yapay zeka destekli sistemimiz hasarı analiz edip sorumluluğu belirleyecektir.
+            Kargonuzu teslim aldığınızda kutuyu açın ve içeriği fotoğraflayın. Yapay zeka sistemi hasar durumunu analiz ederek teslimat kaydını tamamlayacaktır.
           </Text>
         </View>
 
@@ -194,14 +175,14 @@ export default function CustomerPanel({ onBack, token }) {
             placeholderTextColor="#475569"
             value={cargoId}
             onChangeText={setCargoId}
-            keyboardType="numeric"
+            autoCapitalize="none"
             returnKeyType="done"
           />
         </View>
 
         {/* Fotoğraf Durumu */}
         <View style={s.card}>
-          <Text style={s.cardLabel}>📸 Hasar Kanıtı (Fotoğraf)</Text>
+          <Text style={s.cardLabel}>📸 İçerik Fotoğrafı</Text>
           {photo ? (
             <View style={s.photoReadyRow}>
               <View style={s.photoBadge}>
@@ -223,7 +204,7 @@ export default function CustomerPanel({ onBack, token }) {
           activeOpacity={0.85}
         >
           <Text style={s.btnCameraText}>
-            {photo ? '🔄 Fotoğrafı Değiştir' : '📸 Hasarlı Ürünü Çek'}
+            {photo ? '🔄 Fotoğrafı Değiştir' : '📸 Kutu İçeriğini Çek'}
           </Text>
         </TouchableOpacity>
 
@@ -237,13 +218,13 @@ export default function CustomerPanel({ onBack, token }) {
           {loading ? (
             <ActivityIndicator size="small" color="#fff" />
           ) : (
-            <Text style={s.btnSendText}>🚀 Hasar Analizi İçin Gönder</Text>
+            <Text style={s.btnSendText}>✅ Teslimatı Onayla</Text>
           )}
         </TouchableOpacity>
 
         {/* Alt not */}
         <Text style={s.footNote}>
-          Bildiriminiz güvenli biçimde iletilir. Sonuç 24 saat içinde size bildirilir.
+          Fotoğrafınız güvenli biçimde işlenir. AI analizi birkaç dakika içinde tamamlanır.
         </Text>
 
         <View style={{ height: 40 }} />

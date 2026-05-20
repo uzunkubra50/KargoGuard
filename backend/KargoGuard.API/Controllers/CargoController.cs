@@ -121,34 +121,57 @@ public class CargoController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<IActionResult> ConfirmDelivery(
-        [FromForm] int cargoId,
         IFormFile file,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromForm] int? cargoId = null,
+        [FromForm(Name = "cargo_ref_id")] string? cargoRefId = null)
     {
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Teslimat fotoğrafı gönderilmedi." });
 
-        if (cargoId <= 0)
-            return BadRequest(new { message = "Geçerli bir Kargo ID belirtilmelidir." });
+        var connStr = _configuration.GetConnectionString("DefaultConnection");
+        int resolvedId;
 
-        _logger.LogInformation("Teslimat onay isteği alındı. CargoId: {CargoId}", cargoId);
+        if ((cargoId ?? 0) > 0)
+        {
+            resolvedId = cargoId!.Value;
+            using var ck = new NpgsqlConnection(connStr);
+            var exists = await ck.ExecuteScalarAsync<bool>(
+                "SELECT EXISTS(SELECT 1 FROM cargo_analysis_results WHERE id = @Id)",
+                new { Id = resolvedId });
+            if (!exists)
+                return NotFound(new { message = $"Kargo bulunamadı. ID: {resolvedId}" });
+        }
+        else if (!string.IsNullOrWhiteSpace(cargoRefId))
+        {
+            using var ck = new NpgsqlConnection(connStr);
+            resolvedId = await ck.ExecuteScalarAsync<int>(
+                "SELECT COALESCE(MAX(id), 0) FROM cargo_analysis_results WHERE cargo_ref_id = @Ref",
+                new { Ref = cargoRefId });
+            if (resolvedId <= 0)
+                return NotFound(new { message = $"Takip numarası bulunamadı: {cargoRefId}" });
+        }
+        else
+        {
+            return BadRequest(new { message = "cargoId veya cargo_ref_id belirtilmelidir." });
+        }
+
+        _logger.LogInformation("Teslimat onay isteği alındı. CargoId: {CargoId}", resolvedId);
 
         var objectName = await _minioService.UploadImageAsync(file, cancellationToken);
 
-        var queueMessage = new
+        await _rabbitMQPublisher.PublishAsync(ImageProcessingQueue, new
         {
-            action = "delivery",
-            cargo_id = cargoId,
+            action    = "delivery",
+            cargo_id  = resolvedId,
             image_path = objectName,
-            status = "PendingDeliveryScan"
-        };
-
-        await _rabbitMQPublisher.PublishAsync(ImageProcessingQueue, queueMessage, cancellationToken);
+            status    = "PendingDeliveryScan"
+        }, cancellationToken);
 
         return Ok(new
         {
-            message = "Teslimat fotoğrafı yüklendi, yapay zeka analizine gönderildi.",
-            cargoId = cargoId,
+            message    = "Teslimat fotoğrafı yüklendi, yapay zeka analizine gönderildi.",
+            cargoId    = resolvedId,
             objectName = objectName
         });
     }
@@ -168,12 +191,33 @@ public class CargoController : ControllerBase
             var companyId        = GetCompanyId();
             var userId           = GetUserId();
             var isCourier        = User.IsInRole("kurye");
+            var isMusteri        = User.IsInRole("musteri");
 
             using var connection = new NpgsqlConnection(connectionString);
 
-            var whereClause = isCourier && userId.HasValue
-                ? "WHERE company_id = @CompanyId AND courier_id = @UserId"
-                : "WHERE company_id = @CompanyId";
+            string whereClause;
+            object queryParams;
+
+            if (isMusteri)
+            {
+                // Müşteri: takip kodu (token subject) ile cargo_ref_id eşleştirmesi yap
+                // company_id filtresi uygulanmaz çünkü müşteri token'ında company_id yok
+                var trackCode = User.FindFirstValue(System.Security.Claims.ClaimTypes.Name) ?? "";
+                whereClause = trackCode == "MISAFIR"
+                    ? "WHERE 1=1"
+                    : "WHERE cargo_ref_id = @TrackCode";
+                queryParams = new { TrackCode = trackCode };
+            }
+            else if (isCourier && userId.HasValue)
+            {
+                whereClause = "WHERE company_id = @CompanyId AND courier_id = @UserId";
+                queryParams = new { CompanyId = companyId, UserId = userId };
+            }
+            else
+            {
+                whereClause = "WHERE company_id = @CompanyId";
+                queryParams = new { CompanyId = companyId, UserId = userId };
+            }
 
             var sql = $@"
                 SELECT
@@ -207,7 +251,7 @@ public class CargoController : ControllerBase
                 LIMIT 50;
             ";
 
-            var results = await connection.QueryAsync<CargoAnalysisResult>(sql, new { CompanyId = companyId, UserId = userId });
+            var results = await connection.QueryAsync<CargoAnalysisResult>(sql, queryParams);
 
             if (Request.Headers.Accept.Any(value => value?.Contains("text/html", StringComparison.OrdinalIgnoreCase) == true))
                 return Content(RenderResultsHtml(results), "text/html; charset=utf-8");

@@ -130,16 +130,22 @@ def kirp_hasar_bolgesi(image_bytes: bytes, bbox: dict):
         return None
 
 
-def is_429_error(response):
-    if response and getattr(response, "status_code", None) == 429:
-        print("[!] Google Gemini API: 429 Kotasi asildi. Tenacity ile 60 saniye dinlenilip tekrar denenecek...")
+def is_retryable_error(response):
+    if response is None:
+        return False
+    code = getattr(response, "status_code", None)
+    if code == 429:
+        print("[!] Google Gemini API: 429 Kotasi asildi. 60 saniye dinlenilip tekrar denenecek...")
+        return True
+    if code == 503:
+        print("[!] Google Gemini API: 503 Yuksek talep. 30 saniye dinlenilip tekrar denenecek...")
         return True
     return False
 
-@retry(retry=retry_if_result(is_429_error), wait=wait_fixed(60), stop=stop_after_attempt(3))
+@retry(retry=retry_if_result(is_retryable_error), wait=wait_fixed(5), stop=stop_after_attempt(2))
 def make_gemini_request(request_body):
-    # Free tier limite takilmamak icin her istekte otomatik 5 saniye bekle (12 istek / dakika)
-    time.sleep(5)
+    # Free tier: kısa bekleme, 2 deneme — başarısız olursa YOLO sonucuna hemen geç
+    time.sleep(3)
     return requests.post(
         GEMINI_URL,
         json=request_body,
@@ -639,8 +645,8 @@ def process_image(ch, method, properties, body):
 
                 # Webhook → Blockchain kaydı
                 try:
-                    requests.post(
-                        "http://api:8080/api/cargo/blockchain-sync",
+                    wh_resp = requests.post(
+                        "http://api:8080/api/v1/cargo/blockchain-sync",
                         json={
                             "cargoId":   cargo_id,
                             "status":    new_status,
@@ -649,6 +655,10 @@ def process_image(ch, method, properties, body):
                         },
                         timeout=10
                     )
+                    if wh_resp.status_code == 200:
+                        print(f"[✓] Blockchain sync OK. Cargo ID: {cargo_id}")
+                    else:
+                        print(f"[!] Blockchain sync HTTP {wh_resp.status_code}: {wh_resp.text[:200]}")
                 except Exception as wh_err:
                     print(f"[!] Webhook hatası (kritik değil): {wh_err}")
 
