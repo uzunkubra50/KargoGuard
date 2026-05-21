@@ -22,14 +22,17 @@ const Icons = {
   Logout: (p) => (<svg {...p} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>),
 };
 
-const InputField = ({ label, icon, type = 'text', placeholder, value, onChange }) => (
+const InputField = ({ label, icon, type = 'text', placeholder, value, onChange, dark: idark }) => (
   <div className="space-y-1.5">
-    <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
+    <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: idark ? '#64748b' : '#64748b' }}>{label}</label>
     <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">{icon}</span>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: '#64748b' }}>{icon}</span>
       <input
         type={type} value={value} onChange={onChange} placeholder={placeholder}
-        className="w-full pl-9 pr-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder-slate-400 outline-none focus:border-brandBlue focus:bg-white focus:ring-2 focus:ring-brandBlue/10 transition"
+        className="w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none transition"
+        style={idark
+          ? { background: '#1e293b', borderColor: '#334155', color: 'white' }
+          : { background: '#f8fafc', borderColor: '#e2e8f0', color: '#0f172a' }}
       />
     </div>
   </div>
@@ -64,7 +67,8 @@ const authHeaders = () => ({
   'ngrok-skip-browser-warning': '1'
 });
 
-const EnterpriseLogin = ({ onLogin }) => {
+const EnterpriseLogin = ({ onLogin, mode = 'dark' }) => {
+  const dk = mode === 'dark';
   const [loadingRole, setLoadingRole] = useState(null);
   const [role, setRole]               = useState('admin');
   const [adminEmail, setAdminEmail]   = useState('');
@@ -83,10 +87,12 @@ const EnterpriseLogin = ({ onLogin }) => {
     try {
       let res;
       if (role === 'musteri') {
+        if (!trackCode.trim()) { setLoginError('Takip kodu zorunludur.'); setLoadingRole(null); return; }
+        if (!trackPhone.trim()) { setLoginError('Telefon numarası zorunludur.'); setLoadingRole(null); return; }
         res = await fetch(`${API}/api/v1/auth/tracking-access`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' },
-          body: JSON.stringify({ trackCode: trackCode || 'MISAFIR', phone: trackPhone }),
+          body: JSON.stringify({ trackCode: trackCode, phone: trackPhone }),
         });
       } else {
         const username = role === 'admin' ? adminEmail : kuryeId;
@@ -136,12 +142,14 @@ const EnterpriseLogin = ({ onLogin }) => {
   const activeRole = ROLES.find(r => r.key === role);
 
   const QuickLogin = ({ credentials }) => (
-    <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3 space-y-2">
-      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">⚡ Demo — Hızlı Giriş</p>
+    <div className="rounded-xl border border-dashed p-3 space-y-2"
+      style={{ borderColor: dk ? '#334155' : '#cbd5e1', background: dk ? '#0f172a' : '#f8fafc' }}>
+      <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: dk ? '#475569' : '#94a3b8' }}>⚡ Demo — Hızlı Giriş</p>
       <div className="flex flex-wrap gap-2">
         {credentials.map((c, i) => (
           <button key={i} type="button" onClick={c.action}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:border-indigo-400 hover:text-indigo-600 transition-all shadow-sm">
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm"
+            style={{ background: dk ? '#1e293b' : 'white', border: `1px solid ${dk ? '#334155' : '#e2e8f0'}`, color: dk ? '#e2e8f0' : '#374151' }}>
             {c.icon} {c.label}
           </button>
         ))}
@@ -155,16 +163,16 @@ const EnterpriseLogin = ({ onLogin }) => {
         {QuickLogin({ credentials: [
           { icon: '🛡', label: 'Admin Demo', action: () => { setAdminEmail('admin@kargoguard.com'); setAdminPwd('admin123'); } },
         ]})}
-        <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@kargoguard.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} />
-        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} />
+        <InputField label="Kullanıcı adı" icon="👤" placeholder="admin@kargoguard.com" value={adminEmail} onChange={e => setAdminEmail(e.target.value)} dark={dk} />
+        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••••" value={adminPwd} onChange={e => setAdminPwd(e.target.value)} dark={dk} />
         <button type="submit" disabled={!!loadingRole}
           className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
-          style={{ background: '#1e293b', color: 'white' }}>
+          style={{ background: dk ? '#4f46e5' : '#1e293b', color: 'white' }}>
           {loadingRole === 'admin' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Doğrulanıyor...</span></> : <><Icons.Shield className="w-4 h-4"/><span>Giriş yap</span></>}
         </button>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500">
-          ℹ️ Admin hesapları <strong>sadece sistem yöneticisi</strong> tarafından oluşturulur.<br/>
-          <span className="text-slate-400">👁 Tüm kargolar · Tüm kuryeler · Blockchain logları</span>
+        <div className="rounded-xl p-3 text-[11px]" style={{ background: dk ? '#0f172a' : '#f8fafc', border: `1px solid ${dk ? '#1e293b' : '#f1f5f9'}`, color: dk ? '#64748b' : '#64748b' }}>
+          ℹ️ Admin hesapları <strong style={{ color: dk ? '#94a3b8' : '#374151' }}>sadece sistem yöneticisi</strong> tarafından oluşturulur.<br/>
+          <span style={{ color: dk ? '#475569' : '#94a3b8' }}>👁 Tüm kargolar · Tüm kuryeler · Blockchain logları</span>
         </div>
       </form>
     );
@@ -174,53 +182,54 @@ const EnterpriseLogin = ({ onLogin }) => {
           { icon: '🚴', label: 'KRY-00142', action: () => { setKuryeId('KRY-00142'); setKuryePwd('kurye123'); } },
           { icon: '🚴', label: 'KRY-00215', action: () => { setKuryeId('KRY-00215'); setKuryePwd('kurye123'); } },
         ]})}
-        <InputField label="Kurye ID veya telefon" icon="📋" placeholder="KRY-00142" value={kuryeId} onChange={e => setKuryeId(e.target.value)} />
-        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••" value={kuryePwd} onChange={e => setKuryePwd(e.target.value)} />
+        <InputField label="Kurye ID veya telefon" icon="📋" placeholder="KRY-00142" value={kuryeId} onChange={e => setKuryeId(e.target.value)} dark={dk} />
+        <InputField label="Şifre" icon="🔒" type="password" placeholder="••••••••" value={kuryePwd} onChange={e => setKuryePwd(e.target.value)} dark={dk} />
         <button type="submit" disabled={!!loadingRole}
           className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
-          style={{ background: '#1e293b', color: 'white' }}>
+          style={{ background: dk ? '#10b981' : '#1e293b', color: 'white' }}>
           {loadingRole === 'kurye' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Doğrulanıyor...</span></> : <><Icons.Shield className="w-4 h-4"/><span>Giriş yap</span></>}
         </button>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500 space-y-1">
+        <div className="rounded-xl p-3 text-[11px] space-y-1" style={{ background: dk ? '#0f172a' : '#f8fafc', border: `1px solid ${dk ? '#1e293b' : '#f1f5f9'}`, color: dk ? '#64748b' : '#64748b' }}>
           <p>ℹ️ Kurye hesabı admin tarafından oluşturulur. İlk girişte şifre değiştirme zorunludur.</p>
-          <p className="text-[10px]">1 Admin panelden kurye oluştur → ID + geçici şifre üret</p>
-          <p className="text-[10px]">2 Kurye mobilden giriş yapar → şifresini değiştirir</p>
-          <p className="text-[10px]">3 Sadece kendi teslimatlarını görür</p>
+          <p style={{ fontSize: '10px', color: dk ? '#475569' : '#94a3b8' }}>1 Admin panelden kurye oluştur → ID + geçici şifre üret</p>
+          <p style={{ fontSize: '10px', color: dk ? '#475569' : '#94a3b8' }}>2 Kurye mobilden giriş yapar → şifresini değiştirir</p>
+          <p style={{ fontSize: '10px', color: dk ? '#475569' : '#94a3b8' }}>3 Sadece kendi teslimatlarını görür</p>
         </div>
       </form>
     );
     return (
       <div className="space-y-4">
         <div className="space-y-1.5">
-          <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Takip Kodu</label>
-          <div className="border-2 border-dashed border-slate-300 rounded-xl p-3 text-center">
+          <label className="text-xs font-semibold uppercase tracking-wide" style={{ color: '#64748b' }}>Takip Kodu</label>
+          <div className="rounded-xl p-3 text-center" style={{ border: `2px dashed ${dk ? '#334155' : '#cbd5e1'}`, background: dk ? '#0f172a' : 'white' }}>
             <input type="text" value={trackCode} onChange={e => setTrackCode(e.target.value.toUpperCase())}
               placeholder="KRG - 0000000"
-              className="w-full text-center text-lg font-mono font-black text-slate-900 bg-transparent outline-none placeholder-slate-300 tracking-widest"
+              className="w-full text-center text-lg font-mono font-black bg-transparent outline-none tracking-widest"
+              style={{ color: dk ? 'white' : '#0f172a' }}
             />
-            <p className="text-[10px] text-slate-400 mt-1">Takip kodu gir</p>
+            <p className="text-[10px] mt-1" style={{ color: dk ? '#475569' : '#94a3b8' }}>Takip kodu gir</p>
           </div>
         </div>
-        <InputField label="Telefon (doğrulama)" icon="📞" placeholder="05XX XXX XX XX" value={trackPhone} onChange={e => setTrackPhone(e.target.value)} />
+        <InputField label="Telefon (doğrulama)" icon="📞" placeholder="05XX XXX XX XX" value={trackPhone} onChange={e => setTrackPhone(e.target.value)} dark={dk} />
         <button onClick={login} disabled={!!loadingRole}
           className="w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition disabled:opacity-60"
-          style={{ background: '#1e293b', color: 'white' }}>
+          style={{ background: dk ? '#f59e0b' : '#1e293b', color: 'white' }}>
           {loadingRole === 'musteri' ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"/><span>Sorgulanıyor...</span></> : <><Icons.Eye className="w-4 h-4"/><span>Kargomu sorgula</span></>}
         </button>
-        <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-[11px] text-slate-500">
+        <div className="rounded-xl p-3 text-[11px]" style={{ background: dk ? '#0f172a' : '#f8fafc', border: `1px solid ${dk ? '#1e293b' : '#f1f5f9'}`, color: dk ? '#64748b' : '#64748b' }}>
           <p>ℹ️ Hesap açmaya gerek yok. Takip kodu + telefon eşleşirse kargo durumu ve Blockchain kanıtı görüntülenir.</p>
-          <p className="text-[10px] text-slate-400 mt-1">👁 Sadece o kargonun durumu + Etherscan linki</p>
+          <p style={{ fontSize: '10px', marginTop: 4, color: dk ? '#475569' : '#94a3b8' }}>👁 Sadece o kargonun durumu + Etherscan linki</p>
         </div>
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen flex font-sans">
+    <div className="min-h-screen flex font-sans" style={{ background: dk ? '#111827' : 'white', transition: 'background 0.3s' }}>
       <div className="w-full flex">
 
         {/* ── SOL: Mavi Panel ── */}
-        <div className="hidden md:flex flex-col justify-between w-[42%] p-12 text-white" style={{ background: 'linear-gradient(155deg, #002E6D 0%, #0047A8 60%, #1565C0 100%)' }}>
+        <div className="hidden md:flex flex-col justify-between w-[42%] p-12 text-white" style={{ background: 'linear-gradient(155deg, #060d1f 0%, #0d2347 40%, #1a3a6b 80%, #1e4d8c 100%)' }}>
           <div>
             <div className="flex items-center gap-3 mb-10">
               <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center border border-white/30">
@@ -235,10 +244,10 @@ const EnterpriseLogin = ({ onLogin }) => {
               <Icons.Shield className="w-3.5 h-3.5" /> Blockchain ile güvence altında
             </div>
             <h2 className="text-3xl font-black leading-snug tracking-tight mb-4">Kargo hasarını yapay zeka ile tespit edin</h2>
-            <p className="text-sm text-blue-200 leading-relaxed mb-8">IoT sensör verileri ve görüntü analizi birleşimiyle her teslimatın kaydı değiştirilemez şekilde Ethereum'a işlenir.</p>
+            <p className="text-sm leading-relaxed mb-8" style={{ color: 'rgba(165,197,255,0.7)' }}>IoT sensör verileri ve görüntü analizi birleşimiyle her teslimatın kaydı değiştirilemez şekilde Ethereum'a işlenir.</p>
             <ul className="space-y-3 mb-10">
               {features.map((f, i) => (
-                <li key={i} className="flex items-center gap-3 text-sm text-blue-100">
+                <li key={i} className="flex items-center gap-3 text-sm" style={{ color: 'rgba(200,220,255,0.8)' }}>
                   <span className="w-4 h-4 rounded flex-shrink-0" style={{ backgroundColor: f.color + '40', border: `1px solid ${f.color}` }} />
                   {f.text}
                 </li>
@@ -249,17 +258,17 @@ const EnterpriseLogin = ({ onLogin }) => {
             {stats.map((s, i) => (
               <div key={i}>
                 <div className="text-2xl font-black">{s.val}</div>
-                <div className="text-xs text-blue-300 mt-0.5">{s.label}</div>
+                <div className="text-xs mt-0.5" style={{ color: 'rgba(165,197,255,0.55)' }}>{s.label}</div>
               </div>
             ))}
           </div>
         </div>
 
         {/* ── SAĞ: Form Paneli ── */}
-        <div className="flex-1 bg-white flex flex-col items-center justify-center px-8 py-12 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-center px-8 py-12 overflow-y-auto" style={{ background: dk ? '#111827' : 'white', borderLeft: dk ? '1px solid rgba(255,255,255,0.06)' : 'none', transition: 'background 0.3s' }}>
           <div className="w-full max-w-sm">
-            <h1 className="text-2xl font-black text-slate-900 mb-1">Giriş yap</h1>
-            <p className="text-sm text-slate-500 mb-6">Rolünüzü seçerek devam edin</p>
+            <h1 className="text-2xl font-black mb-1" style={{ color: dk ? 'white' : '#0f172a' }}>Giriş yap</h1>
+            <p className="text-sm mb-6" style={{ color: dk ? '#64748b' : '#64748b' }}>Rolünüzü seçerek devam edin</p>
 
             {/* Rol Kartları */}
             <div className="grid grid-cols-3 gap-2 mb-6">
@@ -268,7 +277,7 @@ const EnterpriseLogin = ({ onLogin }) => {
                   className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 transition-all text-center`}
                   style={role === r.key
                     ? { backgroundColor: r.color, borderColor: r.color, color: 'white' }
-                    : { backgroundColor: 'white', borderColor: '#e2e8f0', color: '#64748b' }
+                    : { backgroundColor: dk ? '#1e293b' : 'white', borderColor: dk ? '#334155' : '#e2e8f0', color: dk ? '#94a3b8' : '#64748b' }
                   }
                 >
                   <span className="text-base">{r.icon}</span>
@@ -283,18 +292,19 @@ const EnterpriseLogin = ({ onLogin }) => {
               <div className="flex items-center gap-2 mb-4">
                 <span className="text-base">{activeRole.icon}</span>
                 <div>
-                  <div className="text-sm font-black text-slate-900">{activeRole.label} girişi</div>
+                  <div className="text-sm font-black" style={{ color: dk ? 'white' : '#0f172a' }}>{activeRole.label} girişi</div>
                 </div>
               </div>
               {RightForm()}
             </div>
 
             {loginError && (
-              <div className="mt-4 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-xs text-red-600 font-semibold text-center">
+              <div className="mt-4 rounded-xl px-4 py-2.5 text-xs font-semibold text-center"
+                style={dk ? { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' } : { background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626' }}>
                 {loginError}
               </div>
             )}
-            <p className="text-center text-[10px] text-slate-400 mt-6">🔒 JWT ile güvenli oturum · Blockchain ile şeffaf kayıt</p>
+            <p className="text-center text-[10px] mt-6" style={{ color: dk ? '#334155' : '#94a3b8' }}>🔒 JWT ile güvenli oturum · Blockchain ile şeffaf kayıt</p>
           </div>
         </div>
       </div>
@@ -398,22 +408,48 @@ const MusteriView = ({ onLogout }) => {
   const [result, setResult] = useState(null);
   const [searching, setSearching] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [autoLoaded, setAutoLoaded] = useState(false);
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const doSearch = async (searchQuery) => {
+    if (!searchQuery || !searchQuery.trim()) return;
     setSearching(true); setResult(null); setNotFound(false);
     try {
       const r = await fetch(`${API}/api/v1/cargo/results`, { headers: authHeaders() });
       const data = await r.json();
-      const found = data.find(c => String(c.id) === query.trim());
-      if (found) setResult(found);
-      else setNotFound(true);
+      // API zaten müşteri token'ındaki cargo_ref_id ile filtreliyor, ilk sonucu al
+      if (Array.isArray(data) && data.length > 0) {
+        const q = searchQuery.trim();
+        const found = data.find(c =>
+          String(c.id ?? c.Id) === q ||
+          String(c.cargoRefId ?? c.CargoRefId) === q
+        ) || data[0]; // eşleşme yoksa ilk sonucu göster (API zaten filtreledi)
+        setResult(found);
+      } else {
+        setNotFound(true);
+      }
     } catch { setNotFound(true); }
     finally { setSearching(false); }
   };
 
-  const isDmg = result?.finalDecision === 'HASARLI';
+  const handleSearch = async (e) => {
+    e?.preventDefault();
+    await doSearch(query);
+  };
+
+  // Sayfa açılır açılmaz, girişteki takip koduyla otomatik sorgula
+  useEffect(() => {
+    const trackCode = localStorage.getItem('kg_user') || '';
+    if (trackCode && trackCode !== 'MISAFIR' && !autoLoaded) {
+      setQuery(trackCode);
+      setAutoLoaded(true);
+      doSearch(trackCode);
+    }
+  }, []);
+
+  const isDmg = (result?.finalDecision ?? result?.FinalDecision) === 'HASARLI';
+  const sarsintiVal = result?.sarsintiVerisi ?? result?.SarsintiVerisi ?? 0;
+  const txHashVal = result?.txHash ?? result?.TxHash;
+  const cargoRefVal = result?.cargoRefId ?? result?.CargoRefId;
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans flex flex-col">
@@ -438,7 +474,7 @@ const MusteriView = ({ onLogout }) => {
           <form onSubmit={handleSearch} className="flex gap-2 mb-8">
             <input
               type="text" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Takip No (örn: 1, 2, 3...)"
+              placeholder="Takip No (örn: 255)"
               className="flex-1 px-4 py-3 rounded-xl border border-slate-300 text-sm outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 transition"
             />
             <button type="submit" disabled={searching}
@@ -458,8 +494,8 @@ const MusteriView = ({ onLogout }) => {
             <div className={`rounded-2xl border-2 p-6 ${isDmg ? 'border-red-300 bg-red-50' : 'border-emerald-300 bg-emerald-50'}`}>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="font-black text-slate-900 text-lg">Kargo #{result.id}</div>
-                  <div className="text-xs text-slate-500">{result.isFragile ? '🍷 Hassas Ürün' : '📦 Standart Paket'}</div>
+                  <div className="font-black text-slate-900 text-lg">Kargo #{cargoRefVal || result.id || result.Id}</div>
+                  <div className="text-xs text-slate-500">{(result.isFragile ?? result.IsFragile) ? '🍷 Hassas Ürün' : '📦 Standart Paket'}</div>
                 </div>
                 <span className={`font-black text-sm px-4 py-2 rounded-full border-2 ${isDmg ? 'bg-red-100 text-red-600 border-red-300' : 'bg-emerald-100 text-emerald-700 border-emerald-300'}`}>
                   {isDmg ? '⚠️ HASARLI' : '✅ SAĞLAM'}
@@ -469,19 +505,19 @@ const MusteriView = ({ onLogout }) => {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between py-2 border-b border-black/10">
                   <span className="text-slate-600">AI Analiz Kararı</span>
-                  <span className="font-bold text-slate-900">{result.finalDecision || '—'}</span>
+                  <span className="font-bold text-slate-900">{result.finalDecision ?? result.FinalDecision ?? '—'}</span>
                 </div>
                 <div className="flex justify-between py-2 border-b border-black/10">
                   <span className="text-slate-600">Teslimat Durumu</span>
-                  <span className="font-bold text-slate-900">{result.status || 'Bekliyor'}</span>
+                  <span className="font-bold text-slate-900">{result.status ?? result.Status ?? 'Bekliyor'}</span>
                 </div>
-                {result.sarsintiVerisi > 0 && (
+                {sarsintiVal > 0 && (
                   <div className="flex justify-between py-2 border-b border-black/10">
                     <span className="text-slate-600">Darbe Verisi</span>
-                    <span className={`font-bold ${result.sarsintiVerisi >= 5 ? 'text-red-600' : 'text-slate-900'}`}>{result.sarsintiVerisi}G {result.sarsintiVerisi >= 5 ? '⚠️' : ''}</span>
+                    <span className={`font-bold ${sarsintiVal >= 5 ? 'text-red-600' : 'text-slate-900'}`}>{sarsintiVal}G {sarsintiVal >= 5 ? '⚠️' : ''}</span>
                   </div>
                 )}
-                {result.txHash && (
+                {txHashVal && (
                   <div className="flex justify-between py-2">
                     <span className="text-slate-600">Blockchain Mühür</span>
                     <span className="font-bold text-indigo-600 text-xs">✓ Kayıtlı</span>
@@ -542,8 +578,396 @@ const toTRTime = (str) => {
   return d.toLocaleTimeString("tr-TR", { timeZone: "Europe/Istanbul" });
 };
 
+/* ══════════════ LANDING PAGE ══════════════ */
+function LandingPage({ onEnter, mode, setMode }) {
+  const dk = mode === 'dark';
+  const features = [
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/>
+        </svg>
+      ),
+      title: "Yapay Zeka Analizi",
+      desc: "YOLO v8 nesne tespiti ve Google Gemini Vision ile kargo hasarı %95+ doğrulukla tespit edilir.",
+      c1: "#6366f1", c2: "#8b5cf6",
+      glow: "rgba(99,102,241,0.25)",
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+        </svg>
+      ),
+      title: "Blockchain Güvencesi",
+      desc: "Her analiz sonucu değiştirilemez biçimde Ethereum Sepolia ağına yazılır. Şeffaf sorumluluk zinciri.",
+      c1: "#8b5cf6", c2: "#7c3aed",
+      glow: "rgba(139,92,246,0.25)",
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+      ),
+      title: "IoT Darbe Sensörü",
+      desc: "Kurye aracındaki ivmeölçer anlık G-kuvveti ölçer. 5G üzeri kritik darbede alarm tetiklenir.",
+      c1: "#0ea5e9", c2: "#2563eb",
+      glow: "rgba(14,165,233,0.25)",
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      ),
+      title: "Canlı İzleme",
+      desc: "Prometheus + Grafana entegrasyonu ile sistem metrikleri, API istekleri ve log akışı gerçek zamanlı izlenir.",
+      c1: "#10b981", c2: "#0d9488",
+      glow: "rgba(16,185,129,0.25)",
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      ),
+      title: "Rol Tabanlı Erişim",
+      desc: "Admin, Kurye ve Müşteri rolleri için ayrı paneller. JWT + Redis token blacklist ile güvenli oturum yönetimi.",
+      c1: "#f43f5e", c2: "#ec4899",
+      glow: "rgba(244,63,94,0.25)",
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+        </svg>
+      ),
+      title: "Mobil Uygulama",
+      desc: "Expo React Native ile kurye ve müşteri panelleri. Kamera ile anlık fotoğraf çekimi ve AI analizi.",
+      c1: "#f59e0b", c2: "#ea580c",
+      glow: "rgba(245,158,11,0.25)",
+    },
+  ];
+
+  const steps = [
+    {
+      num: "01",
+      icon: "📦",
+      color: "#6366f1",
+      colorDim: "rgba(99,102,241,0.15)",
+      title: "Kurye Teslim Alır",
+      desc: "Dış ambalaj fotoğrafı çekilir. YOLO v8 + Gemini Vision ile anlık hasar analizi yapılır.",
+      tags: ["YOLO v8", "Gemini Vision", "Roboflow"],
+    },
+    {
+      num: "02",
+      icon: "📡",
+      color: "#f97316",
+      colorDim: "rgba(249,115,22,0.15)",
+      title: "Taşıma Sürecinde",
+      desc: "İvmeölçer sensörü G-kuvvetini 200ms aralıklarla ölçer. 5G üzeri darbede alarm tetiklenir.",
+      tags: ["IoT Sensör", "5G Eşiği", "Gerçek Zamanlı"],
+    },
+    {
+      num: "03",
+      icon: "✅",
+      color: "#10b981",
+      colorDim: "rgba(16,185,129,0.15)",
+      title: "Müşteri Teslim Alır",
+      desc: "Kutu açılır, içerik fotoğraflanır. Karar değiştirilemez biçimde Ethereum'a işlenir.",
+      tags: ["İç Hasar Analizi", "Blockchain", "Sepolia"],
+    },
+  ];
+
+  return (
+    (() => {
+      const T = {
+        pageBg:             dk ? '#06080f'                                : '#f8fafc',
+        navBg:              dk ? 'rgba(6,8,15,0.85)'                     : 'rgba(248,250,252,0.95)',
+        navBorder:          dk ? 'rgba(255,255,255,0.07)'                : 'rgba(15,23,42,0.1)',
+        logoText:           dk ? 'white'                                  : '#0f172a',
+        logoBadgeBg:        dk ? 'rgba(99,102,241,0.15)'                 : 'rgba(99,102,241,0.08)',
+        logoBadgeBorder:    dk ? 'rgba(99,102,241,0.3)'                  : 'rgba(99,102,241,0.2)',
+        logoBadgeColor:     dk ? '#818cf8'                                : '#6366f1',
+        navSubText:         dk ? 'rgba(255,255,255,0.35)'                : 'rgba(15,23,42,0.35)',
+        orb1:               dk ? 'rgba(99,102,241,0.12)'                 : 'rgba(99,102,241,0.07)',
+        orb2:               dk ? 'rgba(139,92,246,0.08)'                 : 'rgba(139,92,246,0.05)',
+        orb3:               dk ? 'rgba(14,165,233,0.07)'                 : 'rgba(14,165,233,0.04)',
+        heroBadgeBg:        dk ? 'rgba(99,102,241,0.12)'                 : 'rgba(99,102,241,0.08)',
+        heroBadgeBorder:    dk ? 'rgba(99,102,241,0.3)'                  : 'rgba(99,102,241,0.25)',
+        heroBadgeColor:     dk ? '#a5b4fc'                                : '#6366f1',
+        heroTitle:          dk ? 'white'                                  : '#0f172a',
+        heroSub:            dk ? 'rgba(255,255,255,0.5)'                 : '#475569',
+        secBtnBg:           dk ? 'rgba(255,255,255,0.04)'                : 'white',
+        secBtnBorder:       dk ? 'rgba(255,255,255,0.1)'                 : 'rgba(15,23,42,0.15)',
+        secBtnColor:        dk ? 'rgba(255,255,255,0.7)'                 : '#334155',
+        secBtnBgHover:      dk ? 'rgba(255,255,255,0.08)'                : '#f8fafc',
+        secBtnBorderHover:  dk ? 'rgba(255,255,255,0.2)'                 : 'rgba(15,23,42,0.25)',
+        techBadgeBg:        dk ? 'rgba(255,255,255,0.05)'                : 'rgba(15,23,42,0.04)',
+        techBadgeBorder:    dk ? 'rgba(255,255,255,0.08)'                : 'rgba(15,23,42,0.1)',
+        techBadgeColor:     dk ? 'rgba(255,255,255,0.5)'                 : '#64748b',
+        statsBg:            dk ? 'rgba(255,255,255,0.025)'               : 'white',
+        statsBorder:        dk ? 'rgba(255,255,255,0.06)'                : 'rgba(15,23,42,0.09)',
+        statsLabel:         dk ? 'rgba(255,255,255,0.35)'                : '#94a3b8',
+        featureBadgeBg:     dk ? 'rgba(99,102,241,0.1)'                  : 'rgba(99,102,241,0.07)',
+        featureBadgeBorder: dk ? 'rgba(99,102,241,0.2)'                  : 'rgba(99,102,241,0.2)',
+        featureBadgeColor:  dk ? '#818cf8'                                : '#6366f1',
+        sectionTitle:       dk ? 'white'                                  : '#0f172a',
+        sectionSub:         dk ? 'rgba(255,255,255,0.4)'                 : '#64748b',
+        cardBg:             dk ? 'rgba(255,255,255,0.04)'                : 'white',
+        cardBorder:         dk ? 'rgba(255,255,255,0.08)'                : 'rgba(15,23,42,0.1)',
+        cardBgHover:        dk ? 'rgba(255,255,255,0.07)'                : '#fafafa',
+        cardBorderHover:    dk ? 'rgba(255,255,255,0.14)'                : 'rgba(99,102,241,0.3)',
+        cardTitle:          dk ? 'white'                                  : '#0f172a',
+        cardDesc:           dk ? 'rgba(255,255,255,0.45)'                : '#64748b',
+        pipelineBg:         dk ? 'rgba(255,255,255,0.015)'               : '#f1f5f9',
+        pipelineBorder:     dk ? 'rgba(255,255,255,0.06)'                : 'rgba(15,23,42,0.09)',
+        pipelineBadgeBg:    dk ? 'rgba(16,185,129,0.1)'                  : 'rgba(16,185,129,0.08)',
+        pipelineBadgeBorder:dk ? 'rgba(16,185,129,0.2)'                  : 'rgba(16,185,129,0.2)',
+        pipelineBadgeColor: dk ? '#34d399'                                : '#059669',
+        stepCardBg:         dk ? 'rgba(255,255,255,0.04)'                : 'white',
+        stepCardBorder:     dk ? 'rgba(255,255,255,0.08)'                : 'rgba(15,23,42,0.1)',
+        stepNumColor:       dk ? 'rgba(255,255,255,0.06)'                : 'rgba(15,23,42,0.07)',
+        stepTitle:          dk ? 'white'                                  : '#0f172a',
+        stepDesc:           dk ? 'rgba(255,255,255,0.45)'                : '#64748b',
+        stepLine:           dk ? 'linear-gradient(90deg,rgba(255,255,255,0.15),rgba(255,255,255,0.03))' : 'linear-gradient(90deg,rgba(99,102,241,0.2),rgba(99,102,241,0.04))',
+        ctaGlow:            dk ? 'rgba(99,102,241,0.18)'                 : 'rgba(99,102,241,0.09)',
+        ctaBadgeBg:         dk ? 'rgba(99,102,241,0.12)'                 : 'rgba(99,102,241,0.08)',
+        ctaBadgeBorder:     dk ? 'rgba(99,102,241,0.25)'                 : 'rgba(99,102,241,0.2)',
+        ctaBadgeColor:      dk ? '#818cf8'                                : '#6366f1',
+        ctaTitle:           dk ? 'white'                                  : '#0f172a',
+        ctaSub:             dk ? 'rgba(255,255,255,0.45)'                : '#64748b',
+        ctaNote:            dk ? 'rgba(255,255,255,0.25)'                : '#94a3b8',
+        footerBorder:       dk ? 'rgba(255,255,255,0.06)'                : 'rgba(15,23,42,0.1)',
+        footerTitle:        dk ? 'white'                                  : '#0f172a',
+        footerText:         dk ? 'rgba(255,255,255,0.2)'                 : '#94a3b8',
+        toggleBg:           dk ? 'rgba(255,255,255,0.07)'                : 'rgba(15,23,42,0.07)',
+        toggleBorder:       dk ? 'rgba(255,255,255,0.12)'                : 'rgba(15,23,42,0.13)',
+        toggleActiveBg:     dk ? 'rgba(255,255,255,0.14)'                : 'white',
+        toggleActiveColor:  dk ? 'white'                                  : '#0f172a',
+        toggleInactiveColor:dk ? 'rgba(255,255,255,0.38)'                : 'rgba(15,23,42,0.38)',
+        cardShadowHover:    dk ? '' : '0 4px 20px rgba(0,0,0,0.08)',
+      };
+
+      return (
+        <div style={{ background: T.pageBg, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background 0.3s' }} className="min-h-screen overflow-x-hidden">
+
+          {/* ── Gradient Orbs ── */}
+          <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+            <div style={{ position: 'absolute', top: '-10%', left: '-5%', width: '50vw', height: '50vw', maxWidth: 700, maxHeight: 700, background: `radial-gradient(circle, ${T.orb1} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
+            <div style={{ position: 'absolute', top: '30%', right: '-10%', width: '40vw', height: '40vw', maxWidth: 600, maxHeight: 600, background: `radial-gradient(circle, ${T.orb2} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
+            <div style={{ position: 'absolute', bottom: '10%', left: '30%', width: '35vw', height: '35vw', maxWidth: 500, maxHeight: 500, background: `radial-gradient(circle, ${T.orb3} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
+          </div>
+
+          {/* ── Navbar ── */}
+          <header style={{ background: T.navBg, backdropFilter: 'blur(20px)', borderBottom: `1px solid ${T.navBorder}`, position: 'sticky', top: 0, zIndex: 50, transition: 'background 0.3s, border-color 0.3s' }}>
+            <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 12, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: dk ? '0 0 20px rgba(99,102,241,0.4)' : '0 2px 12px rgba(99,102,241,0.25)' }}>
+                  <svg style={{ width: 20, height: 20, color: 'white' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                  </svg>
+                </div>
+                <div>
+                  <span style={{ fontWeight: 900, fontSize: 18, letterSpacing: '-0.02em', color: T.logoText, transition: 'color 0.3s' }}>KargoGuard</span>
+                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, color: T.logoBadgeColor, background: T.logoBadgeBg, border: `1px solid ${T.logoBadgeBorder}`, padding: '2px 8px', borderRadius: 99, transition: 'all 0.3s' }}>AI · v1.0</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {/* ── Tema Toggle ── */}
+                <div style={{ display: 'flex', background: T.toggleBg, border: `1px solid ${T.toggleBorder}`, borderRadius: 99, padding: 3, transition: 'all 0.3s' }}>
+                  {[{ val: 'light', icon: '☀️', label: 'Açık' }, { val: 'dark', icon: '🌙', label: 'Koyu' }].map(opt => (
+                    <button key={opt.val} onClick={() => setMode(opt.val)}
+                      style={{ padding: '5px 13px', borderRadius: 99, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, background: mode === opt.val ? T.toggleActiveBg : 'transparent', color: mode === opt.val ? T.toggleActiveColor : T.toggleInactiveColor, transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: 4, boxShadow: mode === opt.val && !dk ? '0 1px 4px rgba(0,0,0,0.1)' : 'none' }}>
+                      {opt.icon} {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={onEnter}
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 700, fontSize: 14, padding: '9px 20px', borderRadius: 12, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: dk ? '0 0 24px rgba(99,102,241,0.35)' : '0 2px 12px rgba(99,102,241,0.3)', transition: 'opacity 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  Sisteme Giriş
+                  <svg style={{ width: 15, height: 15 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </header>
+
+          {/* ── Hero ── */}
+          <section style={{ position: 'relative', zIndex: 1 }} className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
+
+
+            <h1 style={{ fontSize: 'clamp(2.8rem, 6vw, 4.5rem)', fontWeight: 900, lineHeight: 1.08, letterSpacing: '-0.03em', color: T.heroTitle, marginBottom: 24, transition: 'color 0.3s' }}>
+              Kargo Hasarını<br />
+              <span style={{ background: 'linear-gradient(135deg, #818cf8, #c084fc, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+                Yapay Zeka ile Tespit Et
+              </span>
+            </h1>
+
+            <p style={{ fontSize: 18, color: T.heroSub, maxWidth: 580, margin: '0 auto 40px', lineHeight: 1.7, transition: 'color 0.3s' }}>
+              IoT sensörleri, bilgisayarlı görü ve blockchain teknolojisini tek platformda birleştiren kargo güvence sistemi.
+            </p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 64 }}>
+              <button
+                onClick={onEnter}
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 800, fontSize: 16, padding: '15px 32px', borderRadius: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: dk ? '0 0 40px rgba(99,102,241,0.45)' : '0 4px 20px rgba(99,102,241,0.35)', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = dk ? '0 0 55px rgba(99,102,241,0.6)' : '0 8px 28px rgba(99,102,241,0.45)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = dk ? '0 0 40px rgba(99,102,241,0.45)' : '0 4px 20px rgba(99,102,241,0.35)'; }}
+              >
+                Demo'yu Başlat
+                <svg style={{ width: 18, height: 18 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                </svg>
+              </button>
+              <a
+                href="https://sepolia.etherscan.io"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ color: T.secBtnColor, fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 14, border: `1px solid ${T.secBtnBorder}`, background: T.secBtnBg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s', boxShadow: dk ? 'none' : '0 1px 4px rgba(0,0,0,0.06)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.secBtnBgHover; e.currentTarget.style.borderColor = T.secBtnBorderHover; }}
+                onMouseLeave={e => { e.currentTarget.style.background = T.secBtnBg; e.currentTarget.style.borderColor = T.secBtnBorder; }}
+              >
+                <span style={{ fontSize: 18 }}>⛓️</span> Blockchain Kayıtları
+              </a>
+            </div>
+
+            {/* Tech stack badges */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {[
+                { label: 'YOLO v8', dot: '#6366f1' }, { label: 'Gemini Vision', dot: '#8b5cf6' },
+                { label: 'Ethereum Sepolia', dot: '#60a5fa' }, { label: 'ASP.NET Core', dot: '#10b981' },
+                { label: 'React', dot: '#38bdf8' }, { label: 'Expo RN', dot: '#f97316' },
+                { label: 'Grafana', dot: '#f59e0b' }, { label: 'Redis', dot: '#ef4444' },
+              ].map(tb => (
+                <div key={tb.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: T.techBadgeBg, border: `1px solid ${T.techBadgeBorder}`, borderRadius: 99, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: T.techBadgeColor, transition: 'all 0.3s' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tb.dot, display: 'inline-block', flexShrink: 0 }} />
+                  {tb.label}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── İstatistik Bar ── */}
+          <section style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${T.statsBorder}`, borderBottom: `1px solid ${T.statsBorder}`, background: T.statsBg, backdropFilter: 'blur(10px)', transition: 'all 0.3s' }}>
+            <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+              {[
+                { val: '%95+',    label: 'AI Tespit Doğruluğu', color: '#818cf8' },
+                { val: '3 Faz',   label: 'Uçtan Uca Pipeline',  color: '#c084fc' },
+                { val: 'Sepolia', label: 'Blockchain Ağı',       color: '#60a5fa' },
+                { val: '200ms',   label: 'IoT Sensör Aralığı',   color: '#34d399' },
+              ].map(s => (
+                <div key={s.label}>
+                  <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.02em', color: s.color, marginBottom: 4 }}>{s.val}</div>
+                  <div style={{ fontSize: 12, color: T.statsLabel, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', transition: 'color 0.3s' }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── Özellik Kartları ── */}
+          <section style={{ position: 'relative', zIndex: 1 }} className="max-w-6xl mx-auto px-6 py-24">
+            <div className="text-center mb-14">
+              <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.featureBadgeColor, background: T.featureBadgeBg, border: `1px solid ${T.featureBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Teknoloji Altyapısı</div>
+              <h2 style={{ fontSize: 36, fontWeight: 900, color: T.sectionTitle, letterSpacing: '-0.02em', marginBottom: 12, transition: 'color 0.3s' }}>Her adım güvence altında</h2>
+              <p style={{ fontSize: 16, color: T.sectionSub, maxWidth: 480, margin: '0 auto', transition: 'color 0.3s' }}>Kargo sürecinin tamamı izlenir, analiz edilir ve blok zincirine işlenir.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {features.map(f => (
+                <div
+                  key={f.title}
+                  style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, cursor: 'default', transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.cardBgHover; e.currentTarget.style.borderColor = T.cardBorderHover; e.currentTarget.style.boxShadow = dk ? `0 0 30px ${f.glow}` : T.cardShadowHover; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = T.cardBg; e.currentTarget.style.borderColor = T.cardBorder; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${f.c1}, ${f.c2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: 18 }}>
+                    {f.icon}
+                  </div>
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: T.cardTitle, marginBottom: 8, transition: 'color 0.3s' }}>{f.title}</h3>
+                  <p style={{ fontSize: 14, color: T.cardDesc, lineHeight: 1.65, transition: 'color 0.3s' }}>{f.desc}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {/* ── 3 Aşama Akışı ── */}
+          <section style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${T.pipelineBorder}`, background: T.pipelineBg, transition: 'all 0.3s' }} className="py-24">
+            <div className="max-w-5xl mx-auto px-6">
+              <div className="text-center mb-16">
+                <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.pipelineBadgeColor, background: T.pipelineBadgeBg, border: `1px solid ${T.pipelineBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Analiz Pipeline</div>
+                <h2 style={{ fontSize: 36, fontWeight: 900, color: T.sectionTitle, letterSpacing: '-0.02em', marginBottom: 12, transition: 'color 0.3s' }}>3 Fazlı Akış</h2>
+                <p style={{ fontSize: 16, color: T.sectionSub, maxWidth: 420, margin: '0 auto', transition: 'color 0.3s' }}>Teslimat sürecinin başından sonuna tam izlenebilirlik ve şeffaflık.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {steps.map((s, i) => (
+                  <div key={s.num} style={{ position: 'relative', height: '100%' }}>
+                    <div style={{ background: T.stepCardBg, border: `1px solid ${T.stepCardBorder}`, borderRadius: 20, padding: 24, position: 'relative', zIndex: 1, transition: 'all 0.3s', boxShadow: dk ? 'none' : '0 1px 6px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                        <div style={{ width: 56, height: 56, borderRadius: 16, background: s.colorDim, border: `1px solid ${s.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{s.icon}</div>
+                        <span style={{ fontSize: 40, fontWeight: 900, color: T.stepNumColor, letterSpacing: '-0.03em', transition: 'color 0.3s' }}>{s.num}</span>
+                      </div>
+                      <h3 style={{ fontSize: 16, fontWeight: 800, color: T.stepTitle, marginBottom: 10, transition: 'color 0.3s' }}>{s.title}</h3>
+                      <p style={{ fontSize: 13, color: T.stepDesc, lineHeight: 1.65, marginBottom: 16, transition: 'color 0.3s', flex: 1 }}>{s.desc}</p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {s.tags.map(tag => (
+                          <span key={tag} style={{ fontSize: 11, fontWeight: 700, color: s.color, background: s.colorDim, border: `1px solid ${s.color}30`, borderRadius: 99, padding: '3px 10px' }}>{tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* ── CTA ── */}
+          <section style={{ position: 'relative', zIndex: 1, overflow: 'hidden' }} className="py-24 text-center">
+            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at center, ${T.ctaGlow} 0%, transparent 70%)`, transition: 'background 0.3s' }} />
+            <div style={{ position: 'relative' }}>
+              <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.ctaBadgeColor, background: T.ctaBadgeBg, border: `1px solid ${T.ctaBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 20, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Canlı Demo</div>
+              <h2 style={{ fontSize: 40, fontWeight: 900, color: T.ctaTitle, letterSpacing: '-0.025em', marginBottom: 16, transition: 'color 0.3s' }}>Sistemi keşfetmeye hazır mısınız?</h2>
+              <p style={{ fontSize: 17, color: T.ctaSub, marginBottom: 36, transition: 'color 0.3s' }}>Admin, Kurye veya Müşteri rolüyle sistemi canlı deneyin.</p>
+              <button
+                onClick={onEnter}
+                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 800, fontSize: 17, padding: '16px 40px', borderRadius: 14, border: 'none', cursor: 'pointer', boxShadow: dk ? '0 0 50px rgba(99,102,241,0.5)' : '0 4px 24px rgba(99,102,241,0.4)', transition: 'transform 0.2s, box-shadow 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = dk ? '0 0 65px rgba(99,102,241,0.65)' : '0 8px 32px rgba(99,102,241,0.5)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = dk ? '0 0 50px rgba(99,102,241,0.5)' : '0 4px 24px rgba(99,102,241,0.4)'; }}
+              >
+                Sisteme Giriş Yap →
+              </button>
+              <p style={{ fontSize: 12, color: T.ctaNote, marginTop: 16, transition: 'color 0.3s' }}>Demo hesaplar hazır · Kurulum gerektirmez</p>
+            </div>
+          </section>
+
+          {/* ── Footer ── */}
+          <footer style={{ borderTop: `1px solid ${T.footerBorder}`, padding: '28px 24px', textAlign: 'center', position: 'relative', zIndex: 1, transition: 'border-color 0.3s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg style={{ width: 15, height: 15, color: 'white' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                </svg>
+              </div>
+              <span style={{ fontWeight: 800, fontSize: 16, color: T.footerTitle, transition: 'color 0.3s' }}>KargoGuard</span>
+            </div>
+            <p style={{ fontSize: 13, color: T.footerText, transition: 'color 0.3s' }}>AI + Blockchain + IoT</p>
+          </footer>
+
+        </div>
+      );
+    })()
+  );
+}
+
 export default function CargoDashboard() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => !!localStorage.getItem('kg_token'));
+  const [showLanding, setShowLanding]         = useState(true);
+  const [themeMode, setThemeMode]             = useState('dark');
   const [userRole, setUserRole] = useState(() => localStorage.getItem('kg_role') || 'admin');
   const [userName, setUserName] = useState(() => localStorage.getItem('kg_user') || '');
   const [dark, setDark] = useState(false);
@@ -560,6 +984,7 @@ export default function CargoDashboard() {
     localStorage.removeItem('kg_role');
     localStorage.removeItem('kg_user');
     setIsAuthenticated(false);
+    setShowLanding(true);
   };
 
   useEffect(() => {
@@ -678,7 +1103,8 @@ export default function CargoDashboard() {
   };
 
   if (!isAuthenticated) {
-    return <EnterpriseLogin onLogin={(role, user) => { setUserRole(role); setUserName(user || ''); setIsAuthenticated(true); }} />;
+    if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} mode={themeMode} setMode={setThemeMode} />;
+    return <EnterpriseLogin onLogin={(role, user) => { setUserRole(role); setUserName(user || ''); setIsAuthenticated(true); setDark(themeMode === 'dark'); }} mode={themeMode} />;
   }
   if (userRole === 'kurye') return <KuryeView onLogout={handleLogout} />;
   if (userRole === 'musteri') return <MusteriView onLogout={handleLogout} />;
@@ -895,10 +1321,15 @@ export default function CargoDashboard() {
                             )}
                           </td>
                           <td className="py-4 px-6 whitespace-nowrap">
-                            {item.aiConfidence > 0 ? (
+                            {item.aiConfidence >= 0.05 ? (
                               <div>
                                 <div className="text-xs font-bold">{pct(item.aiConfidence)}</div>
                                 <div className={`text-[10px] capitalize mt-0.5 ${t.textMuted}`}>{friendlyClass(item.aiPredictionClass)}</div>
+                              </div>
+                            ) : item.geminiGuvenSkoru > 0 ? (
+                              <div>
+                                <div className="text-xs font-bold">{pct(item.geminiGuvenSkoru)}</div>
+                                <div className={`text-[10px] mt-0.5 ${t.textMuted}`}>{item.geminiHasarTuru || 'Gemini AI'}</div>
                               </div>
                             ) : <span className={t.textMuted}>—</span>}
                           </td>
@@ -1008,7 +1439,7 @@ export default function CargoDashboard() {
                           ? <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Analizi: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.geminiGuvenSkoru)}</span></p>
                           : <p className={`text-xs mt-3 ${t.textMuted}`}>AI Hibrit Analiz: <span className={`font-bold ${t.textMain}`}>Tamamlandı</span></p>
                       }
-                      {selectedCargo.geminiHasarTuru && (
+                      {selectedCargo.geminiGuvenSkoru > 0 && selectedCargo.geminiHasarTuru && selectedCargo.geminiHasarTuru !== 'belirsiz' && (
                         <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
                           <div className="flex justify-between text-[10px]">
                             <span className={t.textMuted}>Hasar Türü</span>
@@ -1028,7 +1459,7 @@ export default function CargoDashboard() {
                               })()}
                             </div>
                           )}
-                          {selectedCargo.geminiAciklama && !selectedCargo.geminiAciklama.startsWith('Gemini API Hata') && (
+                          {selectedCargo.geminiAciklama && (
                             <p className={`text-[10px] leading-relaxed ${t.textMuted}`}>{selectedCargo.geminiAciklama}</p>
                           )}
                         </div>
@@ -1087,7 +1518,7 @@ export default function CargoDashboard() {
                           <span className={`inline-flex px-3 py-1 rounded-full text-xs font-black border ${isGeminiUnavailable ? (dark ? 'bg-orange-500/10 text-orange-400 border-orange-500/30' : 'bg-orange-50 text-orange-600 border-orange-200') : (isInnerDmg ? t.redBadge : t.greenBadge)}`}>
                             {isGeminiUnavailable ? "MANUEL İNCELEME" : (isInnerDmg ? "HASARLI İÇERİK" : "SAĞLAM İÇERİK")}
                           </span>
-                          <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Güven Skoru: <span className={`font-bold ${isGeminiUnavailable ? 'text-orange-500' : t.textMain}`}>{isGeminiUnavailable ? "HATA" : pct(deliveryConf)}</span></p>
+                          {!isGeminiUnavailable && <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Güven Skoru: <span className={`font-bold ${t.textMain}`}>{pct(deliveryConf)}</span></p>}
                         </>
                       )}
                     </div>
