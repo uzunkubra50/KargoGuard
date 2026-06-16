@@ -47,14 +47,15 @@ TEMP_DIR         = "temp_images"
 # ---------------------------------------------------------
 # Roboflow — YOLO v2 (kutu / hasar sınıfları)
 # ---------------------------------------------------------
-_ROBOFLOW_KEY = os.getenv("ROBOFLOW_API_KEY", "")
-ROBOFLOW_URL  = f"https://detect.roboflow.com/kargoguard-ai/2?api_key={_ROBOFLOW_KEY}"
+_ROBOFLOW_KEY  = os.getenv("ROBOFLOW_API_KEY", "")
+ROBOFLOW_URL   = f"https://detect.roboflow.com/kargoguard-ai-twvfl/1?api_key={_ROBOFLOW_KEY}"
+ROBOFLOW_URL_2 = f"https://detect.roboflow.com/kargoguard-ai/2?api_key={_ROBOFLOW_KEY}"
 
 # ---------------------------------------------------------
 # Gemini Ayarları
 # ---------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL   = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 GEMINI_URL     = (
     "https://generativelanguage.googleapis.com/v1beta/models/"
     f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}"
@@ -134,24 +135,33 @@ def is_retryable_error(response):
     if response is None:
         return False
     code = getattr(response, "status_code", None)
-    if code == 429:
-        print("[!] Google Gemini API: 429 Kotasi asildi. 60 saniye dinlenilip tekrar denenecek...")
-        return True
     if code == 503:
-        print("[!] Google Gemini API: 503 Yuksek talep. 30 saniye dinlenilip tekrar denenecek...")
+        print("[!] Google Gemini API: 503 Yuksek talep, tekrar denenecek...")
         return True
     return False
 
 @retry(retry=retry_if_result(is_retryable_error), wait=wait_fixed(5), stop=stop_after_attempt(2))
 def make_gemini_request(request_body):
-    # Free tier: kısa bekleme, 2 deneme — başarısız olursa YOLO sonucuna hemen geç
-    time.sleep(3)
-    return requests.post(
-        GEMINI_URL,
-        json=request_body,
-        headers={"Content-Type": "application/json"},
-        timeout=30
-    )
+    last_response = None
+    for attempt in range(3):
+        if attempt > 0:
+            time.sleep(5)
+        try:
+            last_response = requests.post(
+                GEMINI_URL,
+                json=request_body,
+                headers={"Content-Type": "application/json"},
+                timeout=30
+            )
+            if last_response.ok:
+                return last_response
+            print(f"[!] Gemini deneme {attempt+1}/3 başarısız: {last_response.status_code}")
+            if last_response.status_code == 429:
+                print(f"[!] Gemini 429 kota asıldı — {last_response.text[:200]}")
+                break
+        except Exception as e:
+            print(f"[!] Gemini deneme {attempt+1}/3 hata: {e}")
+    return last_response
 
 def gemini_hasar_analiz(original_b64: str, cropped_b64: str = None, mime_type: str = "image/jpeg") -> dict:
     """
@@ -315,19 +325,20 @@ def init_db():
 
         # Eksik sütunları güvenli şekilde ekle (IF NOT EXISTS PostgreSQL 9.6+)
         yeni_sutunlar = [
-            ("liability_note",        "TEXT"),
-            ("delivery_ai_confidence","FLOAT"),
-            ("delivery_ai_class",     "TEXT"),
-            ("is_fragile",            "BOOLEAN DEFAULT false"),
-            ("gemini_hasar_turu",     "TEXT"),
-            ("gemini_siddet",         "TEXT"),
-            ("gemini_aciklama",       "TEXT"),
-            ("gemini_guven_skoru",    "FLOAT"),
-            ("bbox_json",             "TEXT"),
-            ("security_breach",       "BOOLEAN DEFAULT false"),
-            ("company_id",            "INT"),
-            ("cargo_ref_id",          "TEXT"),
-            ("courier_id",            "INT"),
+            ("liability_note",           "TEXT"),
+            ("delivery_ai_confidence",   "FLOAT"),
+            ("delivery_ai_class",        "TEXT"),
+            ("delivery_gemini_aciklama", "TEXT"),
+            ("is_fragile",               "BOOLEAN DEFAULT false"),
+            ("gemini_hasar_turu",        "TEXT"),
+            ("gemini_siddet",            "TEXT"),
+            ("gemini_aciklama",          "TEXT"),
+            ("gemini_guven_skoru",       "FLOAT"),
+            ("bbox_json",                "TEXT"),
+            ("security_breach",          "BOOLEAN DEFAULT false"),
+            ("company_id",               "INT"),
+            ("cargo_ref_id",             "TEXT"),
+            ("courier_id",               "INT"),
         ]
 
         for col_name, col_type in yeni_sutunlar:
@@ -394,27 +405,45 @@ def process_image(ch, method, properties, body):
         except Exception:
             image_base64_gemini = image_base64
 
-        # -- Roboflow'a gonder --
-        print(f"[->] Roboflow'a gonderiliyor: {image_path}")
-        response    = requests.post(
-            ROBOFLOW_URL,
-            data=image_base64,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=20
-        )
-        result      = response.json()
-        predictions = result.get("predictions", [])
+        # -- Roboflow'a gonder (iki model, en iyi sonuç seçilir) --
+        print(f"[->] Roboflow Model-1 (574 görüntü) gonderiliyor: {image_path}")
+        resp1 = requests.post(ROBOFLOW_URL, data=image_base64,
+                              headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=20)
+        preds1 = resp1.json().get("predictions", [])
+
+        try:
+            print(f"[->] Roboflow Model-2 (87 görüntü) gonderiliyor: {image_path}")
+            resp2  = requests.post(ROBOFLOW_URL_2, data=image_base64,
+                                   headers={"Content-Type": "application/x-www-form-urlencoded"}, timeout=20)
+            preds2 = resp2.json().get("predictions", [])
+        except Exception as e2:
+            print(f"[!] Model-2 hatası (kritik değil): {e2}")
+            preds2 = []
+
+        # Her iki modelin en iyi tahminini karşılaştır, confidence yüksek olanı al
+        best1 = max(preds1, key=lambda x: x.get("confidence", 0)) if preds1 else None
+        best2 = max(preds2, key=lambda x: x.get("confidence", 0)) if preds2 else None
+
+        if best1 and best2:
+            best_prediction = best1 if best1.get("confidence", 0) >= best2.get("confidence", 0) else best2
+            print(f"[YOLO] Model-1 güven: {best1.get('confidence',0):.2f} | Model-2 güven: {best2.get('confidence',0):.2f}")
+        elif best1:
+            best_prediction = best1
+        elif best2:
+            best_prediction = best2
+        else:
+            best_prediction = None
+
+        predictions = [best_prediction] if best_prediction else []
 
         # En yüksek confidence'lı tahmini seç
         ai_prediction_class = "bilinmiyor"
         ai_confidence       = 0.0
-        best_prediction     = None
 
-        if predictions:
-            best_prediction     = max(predictions, key=lambda x: x.get("confidence", 0))
+        if best_prediction:
             ai_prediction_class = best_prediction.get("class", "bilinmiyor").lower()
             ai_confidence       = best_prediction.get("confidence", 0.0)
-            print(f"[YOLO] Sınıf: {ai_prediction_class}, Güven: {ai_confidence:.2f}")
+            print(f"[YOLO] Seçilen → Sınıf: {ai_prediction_class}, Güven: {ai_confidence:.2f}")
 
         # ==================================================
         # UPLOAD aksiyonu — Kurye ilk fotoğrafı yükledi
@@ -555,20 +584,37 @@ def process_image(ch, method, properties, body):
                 print(f"[!] Delivery görüntü resize hatası (orijinal kullanılıyor): {resize_err}")
                 delivery_image_b64 = image_base64
 
-            # Delivery için sadece Gemini analizi yap (İç hasar/kırık vs. kontrolü)
+            # Delivery için Gemini analizi yap (İç hasar kontrolü — JSON schema)
             delivery_request = {
                 "contents": [{
                     "parts": [
-                        {"text": "Sen bir kargo hasar uzmanısın. Fotoğraftaki üründe kırık, çatlak, ezilme veya herhangi bir fiziksel hasar var mı? DİKKAT: Gönderilen fotoğraflar taşıma sırasında hasar görmüş eşyaları içerir. Görseldeki nesne parçalanmış, kırılmış veya bütünlüğü bozulmuşsa KESİNLİKLE 'HASARLI' demelisin. Lütfen sadece şu iki formattan birini kullan: 'HASARLI - %X' veya 'SAĞLAM - %X'. Burada X, tahmininin yüzde olarak güven skorudur. Başka hiçbir şey yazma."},
+                        {"text": "Sen bir kargo hasar uzmanısın. Fotoğraftaki ürünün iç içeriğini analiz et: kırık, çatlak, ezilme, ıslanma veya deformasyon var mı?"},
                         {"inline_data": {"mime_type": "image/jpeg", "data": delivery_image_b64}}
                     ]
                 }],
-                "generationConfig": {"temperature": 0.2}
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "responseMimeType": "application/json",
+                    "responseSchema": {
+                        "type": "object",
+                        "properties": {
+                            "hasar_var":   {"type": "boolean"},
+                            "hasar_turu":  {"type": "string", "enum": ["saglamli", "kirik", "catlamis", "ezilmis", "islanmis", "deformasyonlu", "belirsiz"]},
+                            "guven_skoru": {"type": "number"},
+                            "aciklama":    {"type": "string"}
+                        },
+                        "required": ["hasar_var", "hasar_turu", "guven_skoru", "aciklama"]
+                    }
+                },
+                "systemInstruction": {
+                    "parts": [{"text": "İç içerik analizinde sadece ürünün kendisini değerlendir. Ambalaj hasarını dikkate alma. Kırık, çatlak, deformasyon gibi somut bulgular varsa hasar_var=true dön."}]
+                }
             }
-            
+
             delivery_decision = "SAĞLAM"
             ai_confidence = 0.0
             ai_prediction_class = "bilinmiyor"
+            delivery_aciklama = ""
             is_inner_damaged = False
 
             try:
@@ -576,20 +622,27 @@ def process_image(ch, method, properties, body):
 
                 if gemini_resp.ok:
                     resp_json = gemini_resp.json()
-                    ai_text = resp_json.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip().upper()
+                    raw_text = (
+                        resp_json.get("candidates", [{}])[0]
+                        .get("content", {}).get("parts", [{}])[0]
+                        .get("text", "{}")
+                    )
+                    try:
+                        result = json.loads(raw_text)
+                    except Exception:
+                        result = {}
 
-                    is_inner_damaged = "HASARLI" in ai_text or "KIRIK" in ai_text or "ÇATLAK" in ai_text
+                    is_inner_damaged = bool(result.get("hasar_var", False))
                     delivery_decision = "HASARLI" if is_inner_damaged else "SAĞLAM"
-                    ai_prediction_class = "ic_hasar" if is_inner_damaged else "saglamli"
-
-                    import re
-                    match = re.search(r"%(\d+(?:[.,]\d+)?)", ai_text)
-                    if match:
-                        ai_confidence = float(match.group(1).replace(',', '.')) / 100.0
+                    ai_prediction_class = result.get("hasar_turu", "ic_hasar" if is_inner_damaged else "saglamli")
+                    ai_confidence = float(result.get("guven_skoru", 0.0))
+                    if ai_confidence > 1.0:
+                        ai_confidence = ai_confidence / 100.0
+                    delivery_aciklama = result.get("aciklama", "")
                 else:
                     status_code = gemini_resp.status_code
                     if status_code == 400:
-                        print(f"[!] Delivery Gemini API Key geçersiz (400) — .env dosyasındaki GEMINI_API_KEY'i kontrol edin.")
+                        print(f"[!] Delivery Gemini 400 — {gemini_resp.text[:400]}")
                     elif status_code == 429:
                         print(f"[!] Delivery Gemini kota doldu (429) — yarın tekrar deneyin.")
                     else:
@@ -610,14 +663,23 @@ def process_image(ch, method, properties, body):
             )
             cur = conn.cursor()
             cur.execute(
-                "SELECT sarsinti_verisi, is_fragile FROM cargo_analysis_results WHERE id = %s",
+                "SELECT sarsinti_verisi, is_fragile, final_decision, ai_prediction_class FROM cargo_analysis_results WHERE id = %s",
                 (cargo_id,)
             )
             row = cur.fetchone()
 
             if row:
-                original_shock = row[0]
-                is_fragile     = row[1]
+                original_shock          = row[0]
+                is_fragile              = row[1]
+                original_final_decision = row[2] or ""
+                original_ai_class       = row[3] or ""
+
+                # Gemini çöktüyse ama upload aşamasında zaten HASARLI/ŞÜPHELİ dediyse → YOLO kararını kabul et
+                if delivery_decision == "MANUEL_INCELEME" and original_final_decision in ["HASARLI", "ŞÜPHELİ HASAR"]:
+                    delivery_decision   = "HASARLI"
+                    ai_prediction_class = original_ai_class if original_ai_class else "hasar"
+                    is_inner_damaged    = True
+                    print(f"[FALLBACK] Gemini yok ama upload kararı '{original_final_decision}' → delivery HASARLI kabul edildi.")
 
                 liability_note = get_responsibility_note(
                     ai_prediction_class if not is_inner_damaged else "HASARLI",
@@ -635,11 +697,12 @@ def process_image(ch, method, properties, body):
                     UPDATE cargo_analysis_results
                     SET status = %s, delivery_photo_url = %s, delivery_final_decision = %s,
                         delivery_processed_at = CURRENT_TIMESTAMP, liability_note = %s,
-                        delivery_ai_confidence = %s, delivery_ai_class = %s
+                        delivery_ai_confidence = %s, delivery_ai_class = %s,
+                        delivery_gemini_aciklama = %s
                     WHERE id = %s
                 """, (
                     new_status, image_path, delivery_decision, liability_note,
-                    ai_confidence, ai_prediction_class, cargo_id
+                    ai_confidence, ai_prediction_class, delivery_aciklama, cargo_id
                 ))
                 conn.commit()
 

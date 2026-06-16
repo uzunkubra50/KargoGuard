@@ -42,26 +42,17 @@ export default function CourierPanel({ onBack, token }) {
     }
   }, []);
 
-  if (!permission) {
-    return (
-      <View style={s.centered}>
-        <ActivityIndicator size="large" color="#2563EB" />
-        <Text style={s.loadingText}>Kamera izni yükleniyor…</Text>
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <SafeAreaView style={s.centered}>
-        <Text style={s.permTitle}>📷 Kamera İzni Gerekli</Text>
-        <Text style={s.permDesc}>KargoGuard kargo fotoğraflarını çekebilmek için kamera iznine ihtiyaç duyar.</Text>
-        <TouchableOpacity style={s.btnPrimary} onPress={requestPermission}>
-          <Text style={s.btnPrimaryText}>İzin Ver</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
+  const handleCameraPress = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Web modunda kamera desteklenmiyor', 'Lütfen Expo Go uygulamasını kullanın.');
+      return;
+    }
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) return;
+    }
+    setCameraMode(true);
+  };
 
   // ── Fotoğraf çek ─────────────────────────────────────────────────────────
   const takePicture = async () => {
@@ -208,7 +199,7 @@ export default function CourierPanel({ onBack, token }) {
         </View>
 
         <TouchableOpacity style={[s.btnCamera, upPhoto && s.btnCameraSuccess]}
-          onPress={() => setCameraMode(true)} activeOpacity={0.85}>
+          onPress={handleCameraPress} activeOpacity={0.85}>
           <Text style={s.btnCameraText}>{upPhoto ? '✅ Fotoğraf Hazır — Yeniden Çek' : '📸 Kutuyu Çek'}</Text>
         </TouchableOpacity>
 

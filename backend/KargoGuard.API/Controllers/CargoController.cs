@@ -265,6 +265,23 @@ public class CargoController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Modal açıldığında tx_hash gibi sonradan güncellenen alanları taze çeker.
+    /// </summary>
+    [Authorize]
+    [HttpGet("results/{id:int}")]
+    public async Task<IActionResult> GetResultById(int id)
+    {
+        var connectionString = _configuration.GetConnectionString("DefaultConnection");
+        using var connection = new NpgsqlConnection(connectionString);
+        var row = await connection.QueryFirstOrDefaultAsync(
+            @"SELECT tx_hash AS ""TxHash"", status AS Status
+              FROM cargo_analysis_results WHERE id = @Id",
+            new { Id = id });
+        if (row == null) return NotFound();
+        return Ok(row);
+    }
+
     private static string RenderResultsHtml(IEnumerable<CargoAnalysisResult> results)
     {
         static string H(string? value) => System.Net.WebUtility.HtmlEncode(value ?? "-");
@@ -393,7 +410,8 @@ public class CargoController : ControllerBase
                 SELECT delivery_photo_url,
                        delivery_final_decision,
                        delivery_ai_confidence,
-                       delivery_ai_class
+                       delivery_ai_class,
+                       delivery_gemini_aciklama
                 FROM cargo_analysis_results
                 WHERE id = @Id", new { Id = cargoId });
 
@@ -409,13 +427,16 @@ public class CargoController : ControllerBase
             double conf     = dbCargo.delivery_ai_confidence != null ? Convert.ToDouble(dbCargo.delivery_ai_confidence) : 0.0;
             string predCls  = (dbCargo.delivery_ai_class as string) ?? "bilinmiyor";
 
+            string aciklama = (dbCargo.delivery_gemini_aciklama as string) ?? "";
+
             return Ok(new
             {
                 isDamaged,
-                confidence      = conf,
-                predictionClass = predCls,
-                noPredictions   = string.IsNullOrWhiteSpace(predCls) || predCls == "tespit_edilemedi",
-                photoUrl
+                confidence              = conf,
+                predictionClass         = predCls,
+                noPredictions           = string.IsNullOrWhiteSpace(predCls) || predCls == "tespit_edilemedi",
+                photoUrl,
+                deliveryGeminiAciklama  = aciklama
             });
         }
         catch (Exception ex)
@@ -651,14 +672,19 @@ public class CargoController : ControllerBase
                         "SELECT id FROM cargo_analysis_results WHERE cargo_ref_id = @Ref LIMIT 1",
                         new { Ref = cargo_ref_id });
 
+                    var newStatus     = isDamaged ? "Hasarlı Teslimat (Müşteri Bildirimi)" : "Sorunsuz Teslim (Müşteri Onayı)";
+                    var liabilityNote = isDamaged ? "İçerikte hasar tespit edildi." : "Tüm YZ testleri başarılı. Sorunsuz teslimat.";
+
+                    await connection.ExecuteAsync(
+                        "UPDATE cargo_analysis_results SET status = @Status, liability_note = @Note WHERE id = @Id",
+                        new { Status = newStatus, Note = liabilityNote, Id = matchedId });
+
                     try
                     {
-                        var newStatus     = isDamaged ? "Hasarlı Teslimat (Müşteri Bildirimi)" : "Sorunsuz Teslim (Müşteri Onayı)";
-                        var liabilityNote = isDamaged ? "İçerikte hasar tespit edildi." : "Tüm YZ testleri başarılı. Sorunsuz teslimat.";
-                        var txHash        = await _blockchainService.RecordDeliveryToBlockchainAsync(matchedId, newStatus, objectName);
+                        var txHash = await _blockchainService.RecordDeliveryToBlockchainAsync(matchedId, newStatus, objectName);
                         await connection.ExecuteAsync(
-                            "UPDATE cargo_analysis_results SET tx_hash = @TxHash, status = @Status, liability_note = @Note WHERE id = @Id",
-                            new { TxHash = txHash, Status = newStatus, Note = liabilityNote, Id = matchedId });
+                            "UPDATE cargo_analysis_results SET tx_hash = @TxHash WHERE id = @Id",
+                            new { TxHash = txHash, Id = matchedId });
                     }
                     catch (Exception web3Ex)
                     {

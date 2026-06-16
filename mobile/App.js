@@ -97,16 +97,18 @@ function LoginScreen({ role, onBack, onSuccess }) {
   const [password,  setPassword]  = useState('');
   const [trackCode, setTrackCode] = useState('');
   const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState('');
 
   const handleLogin = async () => {
+    setError('');
     if (isCourier) {
       if (!username.trim() || !password) {
-        Alert.alert('Eksik Bilgi', 'Kullanıcı adı ve şifre gerekli.');
+        setError('Kullanıcı adı ve şifre gerekli.');
         return;
       }
     } else {
       if (!trackCode.trim()) {
-        Alert.alert('Eksik Bilgi', 'Kargo takip kodunu girin.');
+        setError('Kargo takip kodunu girin.');
         return;
       }
     }
@@ -123,7 +125,7 @@ function LoginScreen({ role, onBack, onSuccess }) {
           const data = await res.json();
           onSuccess(data.token);
         } else {
-          Alert.alert('Giriş Başarısız', 'Kullanıcı adı veya şifre hatalı.');
+          setError('Kullanıcı adı veya şifre hatalı.');
         }
       } else {
         const res = await fetch(`${API_BASE_URL}/api/v1/Auth/tracking-access`, {
@@ -135,11 +137,11 @@ function LoginScreen({ role, onBack, onSuccess }) {
           const data = await res.json();
           onSuccess(data.token);
         } else {
-          Alert.alert('Hata', 'İstek başarısız. Sunucuyu kontrol edin.');
+          setError('Takip kodu bulunamadı. Tekrar deneyin.');
         }
       }
     } catch {
-      Alert.alert('Bağlantı Hatası', 'Sunucuya ulaşılamıyor. IP adresini kontrol edin.');
+      setError('Sunucuya ulaşılamıyor. API çalışıyor mu kontrol edin.');
     } finally {
       setLoading(false);
     }
@@ -224,6 +226,12 @@ function LoginScreen({ role, onBack, onSuccess }) {
               : <Text style={s.loginBtnText}>{isCourier ? 'Giriş Yap' : 'Devam Et'}</Text>
             }
           </TouchableOpacity>
+
+          {!!error && (
+            <Text style={{ color: '#f87171', fontSize: 13, marginTop: 12, textAlign: 'center' }}>
+              {error}
+            </Text>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

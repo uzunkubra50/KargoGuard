@@ -34,28 +34,35 @@
     transition: background-color 0.4s ease, color 0.4s ease;
   }
 
-  /* Koyu mod için grid arka plan */
-  .dark body {
-    background-image:
-      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
-      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 40px 40px, 40px 40px;
-    background-position: top center, center center, center center;
-  }
+}
 
-  /* Açık mod için grid arka plan - çok daha yumuşak */
-  :root body {
-    background-image:
-      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
-      linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px);
-    background-size: 100% 100%, 40px 40px, 40px 40px;
-    background-position: top center, center center, center center;
-  }
+
+@keyframes kgBarFill {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes kgNavTruck {
+  0%   { transform: translateX(-80px); }
+  100% { transform: translateX(calc(100vw + 80px)); }
+}
+
+.truck-anim {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  animation: kgNavTruck 10s linear infinite;
+  pointer-events: none;
+  z-index: 0;
 }
 
 @layer utilities {
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
   .glass-panel {
     background-color: var(--bg-glass);
     border: 1px solid var(--border-glass);

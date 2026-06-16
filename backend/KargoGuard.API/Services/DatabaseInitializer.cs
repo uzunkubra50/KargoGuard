@@ -82,10 +82,11 @@ public class DatabaseInitializer : IDatabaseInitializer
             ["gemini_guven_skoru"] = "FLOAT",
             ["bbox_json"] = "TEXT",
             ["security_breach"] = "BOOLEAN DEFAULT false",
-            ["company_id"]      = "INT REFERENCES companies(id)",
-            ["cargo_ref_id"]    = "TEXT",
-            ["courier_id"]      = "INT",
-            ["customer_phone"]  = "VARCHAR(20)"
+            ["company_id"]               = "INT REFERENCES companies(id)",
+            ["cargo_ref_id"]             = "TEXT",
+            ["courier_id"]               = "INT",
+            ["customer_phone"]           = "VARCHAR(20)",
+            ["delivery_gemini_aciklama"] = "TEXT"
         };
 
         foreach (var (name, type) in columns)

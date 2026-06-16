@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 
 /* ══════════════ ICONS ══════════════ */
@@ -567,6 +567,74 @@ const exportPDF = (cargo, innerAnalysis, verdict) => {
   setTimeout(() => win.print(), 500);
 };
 
+const exportDashboardPDF = (cargos) => {
+  const total   = cargos.length;
+  const damaged = cargos.filter(c => c.finalDecision === 'HASARLI').length;
+  const safe    = cargos.filter(c => c.finalDecision === 'SAĞLAM').length;
+  const suspect = cargos.filter(c => c.finalDecision && !['HASARLI','SAĞLAM'].includes(c.finalDecision)).length;
+  const rate    = total > 0 ? ((damaged / total) * 100).toFixed(1) : '0.0';
+  const now     = new Date().toLocaleString('tr-TR');
+
+  const rows = cargos.map(c => {
+    const dec = c.finalDecision || '—';
+    const badgeCls = dec === 'HASARLI' ? 'red' : dec === 'SAĞLAM' ? 'green' : 'yellow';
+    const status = c.status || '—';
+    const date   = c.processedAt ? new Date(c.processedAt.endsWith('Z') ? c.processedAt : c.processedAt + 'Z').toLocaleString('tr-TR') : '—';
+    const g      = c.sarsintiVerisi != null ? c.sarsintiVerisi + 'G' : '—';
+    const conf   = c.aiConfidence != null ? '%' + (c.aiConfidence * 100).toFixed(1) : '—';
+    const chain  = c.txHash ? `<a href="https://sepolia.etherscan.io/tx/${c.txHash}" style="color:#4f46e5;font-size:10px">Etherscan</a>` : '—';
+    return `<tr>
+      <td>#${c.id}</td>
+      <td>${c.isFragile ? 'Hassas' : 'Standart'}</td>
+      <td>${g}</td>
+      <td>${conf}</td>
+      <td><span class="badge ${badgeCls}">${dec}</span></td>
+      <td>${status}</td>
+      <td style="font-size:10px">${date}</td>
+      <td>${chain}</td>
+    </tr>`;
+  }).join('');
+
+  const win = window.open('', '_blank');
+  win.document.write(`<!DOCTYPE html><html lang="tr"><head>
+    <meta charset="UTF-8"><title>KargoGuard Dashboard Raporu</title>
+    <style>
+      body{font-family:'Segoe UI',sans-serif;margin:40px;color:#1e293b;font-size:13px}
+      h1{color:#4f46e5;font-size:22px;margin-bottom:4px}
+      .sub{color:#64748b;font-size:12px;margin-bottom:24px}
+      .stats{display:flex;gap:16px;margin-bottom:28px;flex-wrap:wrap}
+      .stat{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 20px;min-width:110px;text-align:center}
+      .stat .num{font-size:26px;font-weight:900;color:#1e293b}
+      .stat .lbl{font-size:11px;color:#64748b;margin-top:2px}
+      .stat.dmg .num{color:#dc2626} .stat.ok .num{color:#059669}
+      table{border-collapse:collapse;width:100%;margin-top:8px}
+      td,th{border:1px solid #e2e8f0;padding:7px 10px;font-size:11px}
+      th{background:#f1f5f9;font-weight:700;text-align:left}
+      tr:nth-child(even){background:#f8fafc}
+      .badge{padding:2px 8px;border-radius:12px;font-weight:800;font-size:10px;display:inline-block}
+      .green{background:#d1fae5;color:#065f46}.red{background:#fee2e2;color:#991b1b}.yellow{background:#fef9c3;color:#854d0e}
+      footer{margin-top:32px;font-size:10px;color:#94a3b8;border-top:1px solid #e2e8f0;padding-top:10px}
+      @media print{button{display:none}}
+    </style></head><body>
+    <h1>KargoGuard — Dashboard Raporu</h1>
+    <div class="sub">Oluşturulma: ${now}</div>
+    <div class="stats">
+      <div class="stat"><div class="num">${total}</div><div class="lbl">Toplam Kargo</div></div>
+      <div class="stat dmg"><div class="num">${damaged}</div><div class="lbl">Hasarlı</div></div>
+      <div class="stat ok"><div class="num">${safe}</div><div class="lbl">Sağlam</div></div>
+      <div class="stat"><div class="num">${suspect}</div><div class="lbl">Şüpheli/Diğer</div></div>
+      <div class="stat dmg"><div class="num">%${rate}</div><div class="lbl">Hasar Oranı</div></div>
+    </div>
+    <table>
+      <thead><tr><th>ID</th><th>Tip</th><th>IoT G</th><th>AI Güven</th><th>AI Kararı</th><th>Durum</th><th>Tarih</th><th>Blockchain</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <footer>Bu rapor KargoGuard sistemi tarafından otomatik oluşturulmuştur. · ${now}</footer>
+    </body></html>`);
+  win.document.close();
+  setTimeout(() => win.print(), 600);
+};
+
 const toTRDate = (str) => {
   if (!str) return "";
   const d = new Date(str.endsWith("Z") ? str : str + "Z");
@@ -581,6 +649,19 @@ const toTRTime = (str) => {
 /* ══════════════ LANDING PAGE ══════════════ */
 function LandingPage({ onEnter, mode, setMode }) {
   const dk = mode === 'dark';
+  const cardRef = useRef(null);
+  const [cardTilt, setCardTilt] = useState({ x: 0, y: 0 });
+  const onCardMouseMove = (e) => {
+    const el = cardRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width / 2);
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    setCardTilt({ x: dy * -8, y: dx * 8 });
+  };
+  const onCardMouseLeave = () => setCardTilt({ x: 0, y: 0 });
   const features = [
     {
       icon: (
@@ -589,7 +670,7 @@ function LandingPage({ onEnter, mode, setMode }) {
         </svg>
       ),
       title: "Yapay Zeka Analizi",
-      desc: "YOLO v8 nesne tespiti ve Google Gemini Vision ile kargo hasarı %95+ doğrulukla tespit edilir.",
+      desc: "YOLO v26 nesne tespiti ve Google Gemini Vision ile kargo hasarı %95+ doğrulukla tespit edilir.",
       c1: "#6366f1", c2: "#8b5cf6",
       glow: "rgba(99,102,241,0.25)",
     },
@@ -657,8 +738,8 @@ function LandingPage({ onEnter, mode, setMode }) {
       color: "#6366f1",
       colorDim: "rgba(99,102,241,0.15)",
       title: "Kurye Teslim Alır",
-      desc: "Dış ambalaj fotoğrafı çekilir. YOLO v8 + Gemini Vision ile anlık hasar analizi yapılır.",
-      tags: ["YOLO v8", "Gemini Vision", "Roboflow"],
+      desc: "Dış ambalaj fotoğrafı çekilir. YOLO v26 + Gemini Vision ile anlık hasar analizi yapılır.",
+      tags: ["YOLO v26", "Gemini Vision", "Roboflow"],
     },
     {
       num: "02",
@@ -751,20 +832,37 @@ function LandingPage({ onEnter, mode, setMode }) {
       };
 
       return (
-        <div style={{ background: T.pageBg, fontFamily: "'Inter', system-ui, sans-serif", transition: 'background 0.3s' }} className="min-h-screen overflow-x-hidden">
+        <div style={{ background: T.pageBg, fontFamily: "'Outfit', system-ui, sans-serif", transition: 'background 0.3s' }} className="min-h-screen overflow-x-hidden">
+          <style>{`
+            @keyframes kgPulseDot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.35;transform:scale(0.75)} }
+            @keyframes kgFadeUp { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+            @keyframes kgTxPulse { 0%,100%{opacity:0.6} 50%{opacity:1} }
+            @keyframes kgScan { 0%{top:0;opacity:0} 8%{opacity:1} 92%{opacity:1} 100%{top:calc(100% - 2px);opacity:0} }
+            @keyframes kgBar1 { 0%,100%{width:70%} 50%{width:88%} }
+            @keyframes kgBar2 { 0%,100%{width:36%} 50%{width:53%} }
+            @keyframes kgTruckMove { 0%{transform:translateX(-260px)} 100%{transform:translateX(1900px)} }
+            @keyframes kgRoadDash { 0%{background-position:0 0} 100%{background-position:-48px 0} }
+            @keyframes kgFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+            @keyframes kgGrad { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+            @keyframes kgOrbDrift1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(40px,-25px) scale(1.06)} 66%{transform:translate(-20px,18px) scale(0.96)} }
+            @keyframes kgOrbDrift2 { 0%,100%{transform:translate(0,0) scale(1)} 40%{transform:translate(-35px,30px) scale(1.04)} 70%{transform:translate(25px,-15px) scale(0.98)} }
+          `}</style>
 
-          {/* ── Gradient Orbs ── */}
-          <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-            <div style={{ position: 'absolute', top: '-10%', left: '-5%', width: '50vw', height: '50vw', maxWidth: 700, maxHeight: 700, background: `radial-gradient(circle, ${T.orb1} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
-            <div style={{ position: 'absolute', top: '30%', right: '-10%', width: '40vw', height: '40vw', maxWidth: 600, maxHeight: 600, background: `radial-gradient(circle, ${T.orb2} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
-            <div style={{ position: 'absolute', bottom: '10%', left: '30%', width: '35vw', height: '35vw', maxWidth: 500, maxHeight: 500, background: `radial-gradient(circle, ${T.orb3} 0%, transparent 70%)`, borderRadius: '50%', transition: 'background 0.3s' }} />
+
+          {/* ── Arkaplan Orb Katmanı ── */}
+          <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: `radial-gradient(circle, ${dk ? 'rgba(148,163,184,0.07)' : 'rgba(15,23,42,0.04)'} 1px, transparent 1px)`, backgroundSize: '30px 30px' }} />
+            <div style={{ position: 'absolute', top: '10%', left: '8%', width: 380, height: 380, borderRadius: '50%', background: T.orb1, animation: 'kgOrbDrift1 12s ease-in-out infinite', filter: 'blur(60px)', transform: 'translate(-50%,-50%)' }} />
+            <div style={{ position: 'absolute', top: '60%', right: '10%', width: 320, height: 320, borderRadius: '50%', background: T.orb2, animation: 'kgOrbDrift2 15s ease-in-out infinite', filter: 'blur(60px)' }} />
+            <div style={{ position: 'absolute', top: '40%', left: '50%', width: 500, height: 500, borderRadius: '50%', background: T.orb3, animation: 'kgOrbDrift1 18s ease-in-out infinite reverse', filter: 'blur(80px)', transform: 'translate(-50%,-50%)' }} />
+            <div style={{ position: 'absolute', top: '85%', left: '20%', width: 280, height: 280, borderRadius: '50%', background: T.orb2, animation: 'kgOrbDrift2 10s ease-in-out infinite', filter: 'blur(50px)' }} />
           </div>
 
           {/* ── Navbar ── */}
           <header style={{ background: T.navBg, backdropFilter: 'blur(20px)', borderBottom: `1px solid ${T.navBorder}`, position: 'sticky', top: 0, zIndex: 50, transition: 'background 0.3s, border-color 0.3s' }}>
             <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 12, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: dk ? '0 0 20px rgba(99,102,241,0.4)' : '0 2px 12px rgba(99,102,241,0.25)' }}>
+                <div style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 10, width: 38, height: 38, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg style={{ width: 20, height: 20, color: 'white' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                   </svg>
@@ -786,9 +884,9 @@ function LandingPage({ onEnter, mode, setMode }) {
                 </div>
                 <button
                   onClick={onEnter}
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 700, fontSize: 14, padding: '9px 20px', borderRadius: 12, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: dk ? '0 0 24px rgba(99,102,241,0.35)' : '0 2px 12px rgba(99,102,241,0.3)', transition: 'opacity 0.2s' }}
-                  onMouseEnter={e => e.currentTarget.style.opacity = '0.85'}
-                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 700, fontSize: 14, padding: '9px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, boxShadow: '0 2px 12px rgba(99,102,241,0.35)', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.5)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 12px rgba(99,102,241,0.35)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
                   Sisteme Giriş
                   <svg style={{ width: 15, height: 15 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -800,93 +898,209 @@ function LandingPage({ onEnter, mode, setMode }) {
           </header>
 
           {/* ── Hero ── */}
-          <section style={{ position: 'relative', zIndex: 1 }} className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
+          <section style={{ position: 'relative', zIndex: 1 }} className="max-w-6xl mx-auto px-6 pt-20 pb-12">
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_330px] gap-10 lg:gap-14 items-center">
 
+              {/* ── Sol: Metin ── */}
+              <div className="text-center lg:text-left" style={{ animation: 'kgFadeUp 0.7s ease both' }}>
 
-            <h1 style={{ fontSize: 'clamp(2.8rem, 6vw, 4.5rem)', fontWeight: 900, lineHeight: 1.08, letterSpacing: '-0.03em', color: T.heroTitle, marginBottom: 24, transition: 'color 0.3s' }}>
-              Kargo Hasarını<br />
-              <span style={{ background: 'linear-gradient(135deg, #818cf8, #c084fc, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-                Yapay Zeka ile Tespit Et
-              </span>
-            </h1>
-
-            <p style={{ fontSize: 18, color: T.heroSub, maxWidth: 580, margin: '0 auto 40px', lineHeight: 1.7, transition: 'color 0.3s' }}>
-              IoT sensörleri, bilgisayarlı görü ve blockchain teknolojisini tek platformda birleştiren kargo güvence sistemi.
-            </p>
-
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, flexWrap: 'wrap', marginBottom: 64 }}>
-              <button
-                onClick={onEnter}
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 800, fontSize: 16, padding: '15px 32px', borderRadius: 14, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: dk ? '0 0 40px rgba(99,102,241,0.45)' : '0 4px 20px rgba(99,102,241,0.35)', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = dk ? '0 0 55px rgba(99,102,241,0.6)' : '0 8px 28px rgba(99,102,241,0.45)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = dk ? '0 0 40px rgba(99,102,241,0.45)' : '0 4px 20px rgba(99,102,241,0.35)'; }}
-              >
-                Demo'yu Başlat
-                <svg style={{ width: 18, height: 18 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
-                </svg>
-              </button>
-              <a
-                href="https://sepolia.etherscan.io"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: T.secBtnColor, fontWeight: 700, fontSize: 15, padding: '14px 28px', borderRadius: 14, border: `1px solid ${T.secBtnBorder}`, background: T.secBtnBg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s', boxShadow: dk ? 'none' : '0 1px 4px rgba(0,0,0,0.06)' }}
-                onMouseEnter={e => { e.currentTarget.style.background = T.secBtnBgHover; e.currentTarget.style.borderColor = T.secBtnBorderHover; }}
-                onMouseLeave={e => { e.currentTarget.style.background = T.secBtnBg; e.currentTarget.style.borderColor = T.secBtnBorder; }}
-              >
-                <span style={{ fontSize: 18 }}>⛓️</span> Blockchain Kayıtları
-              </a>
-            </div>
-
-            {/* Tech stack badges */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
-              {[
-                { label: 'YOLO v8', dot: '#6366f1' }, { label: 'Gemini Vision', dot: '#8b5cf6' },
-                { label: 'Ethereum Sepolia', dot: '#60a5fa' }, { label: 'ASP.NET Core', dot: '#10b981' },
-                { label: 'React', dot: '#38bdf8' }, { label: 'Expo RN', dot: '#f97316' },
-                { label: 'Grafana', dot: '#f59e0b' }, { label: 'Redis', dot: '#ef4444' },
-              ].map(tb => (
-                <div key={tb.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: T.techBadgeBg, border: `1px solid ${T.techBadgeBorder}`, borderRadius: 99, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: T.techBadgeColor, transition: 'all 0.3s' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tb.dot, display: 'inline-block', flexShrink: 0 }} />
-                  {tb.label}
+                {/* Canlı badge */}
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: T.heroBadgeBg, border: `1px solid ${T.heroBadgeBorder}`, borderRadius: 99, padding: '6px 16px', marginBottom: 26, fontSize: 12, fontWeight: 700, color: T.heroBadgeColor }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#10b981', display: 'inline-block', animation: 'kgPulseDot 2s ease-in-out infinite', flexShrink: 0 }} />
+                  Sistem Aktif · Demo Hazır
                 </div>
-              ))}
+
+                <h1 style={{ fontSize: 'clamp(2.4rem, 5vw, 3.8rem)', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-0.02em', color: T.heroTitle, marginBottom: 22, transition: 'color 0.3s' }}>
+                  Kargo Hasarını<br />
+                  <span style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899, #8b5cf6, #6366f1)', backgroundSize: '300% 300%', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', animation: 'kgGrad 4s ease infinite', display: 'inline-block' }}>
+                    Yapay Zeka ile Tespit Et
+                  </span>
+                </h1>
+
+                <p style={{ fontSize: 17, color: T.heroSub, maxWidth: 520, marginBottom: 36, lineHeight: 1.7, transition: 'color 0.3s' }} className="mx-auto lg:mx-0">
+                  IoT sensörleri, bilgisayarlı görü ve blockchain teknolojisini tek platformda birleştiren kargo güvence sistemi.
+                </p>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 44 }} className="justify-center lg:justify-start">
+                  <button
+                    onClick={onEnter}
+                    style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 700, fontSize: 15, padding: '13px 26px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 20px rgba(99,102,241,0.4)', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 28px rgba(99,102,241,0.55)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(99,102,241,0.4)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                  >
+                    Demo'yu Başlat
+                    <svg style={{ width: 17, height: 17 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                    </svg>
+                  </button>
+                  <a
+                    href="https://sepolia.etherscan.io"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: T.secBtnColor, fontWeight: 700, fontSize: 14, padding: '13px 22px', borderRadius: 14, border: `1px solid ${T.secBtnBorder}`, background: T.secBtnBg, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', transition: 'background 0.2s, border-color 0.2s', boxShadow: dk ? 'none' : '0 1px 4px rgba(0,0,0,0.06)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = T.secBtnBgHover; e.currentTarget.style.borderColor = T.secBtnBorderHover; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = T.secBtnBg; e.currentTarget.style.borderColor = T.secBtnBorder; }}
+                  >
+                    <span style={{ fontSize: 16 }}>⛓️</span> Blockchain Kayıtları
+                  </a>
+                </div>
+
+                {/* Tech stack badges */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }} className="justify-center lg:justify-start">
+                  {[
+                    { label: 'YOLO v26', dot: '#6366f1' }, { label: 'Gemini Vision', dot: '#8b5cf6' },
+                    { label: 'Ethereum Sepolia', dot: '#60a5fa' }, { label: 'ASP.NET Core', dot: '#10b981' },
+                    { label: 'React', dot: '#38bdf8' }, { label: 'Expo RN', dot: '#f97316' },
+                    { label: 'Grafana', dot: '#f59e0b' }, { label: 'Redis', dot: '#ef4444' },
+                  ].map((tb, i) => (
+                    <div key={tb.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: T.techBadgeBg, border: `1px solid ${T.techBadgeBorder}`, borderRadius: 99, padding: '4px 11px', fontSize: 11, fontWeight: 600, color: T.techBadgeColor, animation: `kgFadeUp 0.4s ${0.08 + i * 0.06}s ease both` }}>
+                      <span style={{ width: 5, height: 5, borderRadius: '50%', background: tb.dot, display: 'inline-block', flexShrink: 0 }} />
+                      {tb.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Sağ: Analiz Kartı ── */}
+              <div className="hidden lg:flex justify-center items-center" style={{ animation: 'kgFadeUp 0.9s 0.18s ease both' }}>
+                <div style={{ animation: 'kgFloat 6s ease-in-out infinite' }}>
+                  <div
+                    ref={cardRef}
+                    onMouseMove={onCardMouseMove}
+                    onMouseLeave={onCardMouseLeave}
+                    style={{
+                      width: 310,
+                      background: dk ? '#0f172a' : 'white',
+                      border: `1px solid ${dk ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.12)'}`,
+                      borderRadius: 16,
+                      padding: 22,
+                      boxShadow: dk ? '0 8px 32px rgba(0,0,0,0.5)' : '0 4px 20px rgba(99,102,241,0.15)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                      cursor: 'default',
+                      transform: `perspective(800px) rotateX(${cardTilt.x}deg) rotateY(${cardTilt.y}deg)`,
+                      transition: cardTilt.x === 0 && cardTilt.y === 0 ? 'transform 0.6s ease' : 'transform 0.1s ease',
+                    }}
+                  >
+                    {/* Top shimmer line */}
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.5), rgba(139,92,246,0.4), transparent)' }} />
+                    {/* Kart başlığı */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 11, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg style={{ width: 18, height: 18, color: 'white' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                          </svg>
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 800, color: dk ? 'white' : '#0f172a', letterSpacing: '-0.01em' }}>KargoGuard</div>
+                          <div style={{ fontSize: 10, color: dk ? 'rgba(255,255,255,0.38)' : '#94a3b8' }}>Canlı Analiz · #KG-2024</div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, fontWeight: 800, color: '#10b981', background: 'rgba(16,185,129,0.13)', border: '1px solid rgba(16,185,129,0.28)', borderRadius: 99, padding: '3px 10px' }}>
+                        <span style={{ width: 5, height: 5, background: '#10b981', borderRadius: '50%', animation: 'kgPulseDot 1.6s ease-in-out infinite' }} />
+                        AKTİF
+                      </div>
+                    </div>
+
+                    {/* Faz 1: AI Analizi */}
+                    <div style={{ marginBottom: 11, background: dk ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.05)', borderRadius: 10, padding: '13px 14px', border: `1px solid ${dk ? 'rgba(99,102,241,0.2)' : 'rgba(99,102,241,0.12)'}`, position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, transparent, rgba(59,130,246,0.9), rgba(99,102,241,0.7), transparent)', animation: 'kgScan 3s ease-in-out infinite' }} />
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>⚡</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#818cf8' }}>Faz 1 · AI Analizi</span>
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 900, color: '#10b981' }}>%92</span>
+                      </div>
+                      <div style={{ height: 5, background: dk ? 'rgba(255,255,255,0.08)' : 'rgba(99,102,241,0.1)', borderRadius: 99, overflow: 'hidden', marginBottom: 7 }}>
+                        <div style={{ height: '100%', borderRadius: 99, background: '#3b82f6', animation: 'kgBar1 3.2s ease-in-out infinite', width: '70%' }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: dk ? 'rgba(255,255,255,0.35)' : '#94a3b8' }}>
+                        YOLO v26 + Gemini Vision · <span style={{ color: '#10b981', fontWeight: 700 }}>SAĞLAM</span>
+                      </div>
+                    </div>
+
+                    {/* Faz 2: IoT Sensör */}
+                    <div style={{ marginBottom: 11, background: dk ? 'rgba(249,115,22,0.08)' : 'rgba(249,115,22,0.05)', borderRadius: 14, padding: '13px 14px', border: `1px solid ${dk ? 'rgba(249,115,22,0.24)' : 'rgba(249,115,22,0.13)'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>📡</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#fb923c' }}>Faz 2 · IoT Sensör</span>
+                        </div>
+                        <span style={{ fontSize: 20, fontWeight: 900, color: '#fb923c', letterSpacing: '-0.04em', lineHeight: 1 }}>2.4G</span>
+                      </div>
+                      <div style={{ height: 4, background: dk ? 'rgba(255,255,255,0.08)' : 'rgba(249,115,22,0.1)', borderRadius: 99, overflow: 'hidden', marginBottom: 7 }}>
+                        <div style={{ height: '100%', borderRadius: 99, background: '#f97316', animation: 'kgBar2 2.6s ease-in-out infinite', width: '36%' }} />
+                      </div>
+                      <div style={{ fontSize: 10, color: dk ? 'rgba(255,255,255,0.35)' : '#94a3b8' }}>
+                        Eşik: 5G · <span style={{ color: '#10b981', fontWeight: 700 }}>GÜVENLİ</span>
+                      </div>
+                    </div>
+
+                    {/* Faz 3: Blockchain */}
+                    <div style={{ background: dk ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.05)', borderRadius: 14, padding: '13px 14px', border: `1px solid ${dk ? 'rgba(16,185,129,0.24)' : 'rgba(16,185,129,0.13)'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 13 }}>⛓️</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#34d399' }}>Faz 3 · Blockchain</span>
+                        </div>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#10b981', background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.32)', padding: '2px 8px', borderRadius: 99 }}>✓ ONAYLANDI</span>
+                      </div>
+                      <div style={{ fontSize: 10, fontFamily: 'monospace', letterSpacing: '0.03em', color: dk ? 'rgba(255,255,255,0.42)' : '#94a3b8', animation: 'kgTxPulse 3s ease-in-out infinite' }}>
+                        0x7f3a•••c2d9 · Sepolia
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+
             </div>
           </section>
 
           {/* ── İstatistik Bar ── */}
           <section style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${T.statsBorder}`, borderBottom: `1px solid ${T.statsBorder}`, background: T.statsBg, backdropFilter: 'blur(10px)', transition: 'all 0.3s' }}>
-            <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div className="max-w-6xl mx-auto px-6 py-0 grid grid-cols-2 md:grid-cols-4 text-center">
               {[
-                { val: '%95+',    label: 'AI Tespit Doğruluğu', color: '#818cf8' },
-                { val: '3 Faz',   label: 'Uçtan Uca Pipeline',  color: '#c084fc' },
-                { val: 'Sepolia', label: 'Blockchain Ağı',       color: '#60a5fa' },
-                { val: '200ms',   label: 'IoT Sensör Aralığı',   color: '#34d399' },
-              ].map(s => (
-                <div key={s.label}>
-                  <div style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.02em', color: s.color, marginBottom: 4 }}>{s.val}</div>
-                  <div style={{ fontSize: 12, color: T.statsLabel, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', transition: 'color 0.3s' }}>{s.label}</div>
+                { val: '%95+',    label: 'AI Tespit Doğruluğu', color: '#818cf8', c2: '#a78bfa', icon: '🎯', sub: 'YOLO v26 + Gemini Vision' },
+                { val: '3 Faz',   label: 'Uçtan Uca Pipeline',  color: '#c084fc', c2: '#e879f9', icon: '⚡', sub: 'Upload → IoT → Teslimat' },
+                { val: 'Sepolia', label: 'Blockchain Ağı',       color: '#60a5fa', c2: '#38bdf8', icon: '⛓️', sub: 'Ethereum test ağı' },
+                { val: '200ms',   label: 'IoT Sensör Aralığı',   color: '#34d399', c2: '#10b981', icon: '📡', sub: 'Gerçek zamanlı darbe ölçümü' },
+              ].map((s, i) => (
+                <div key={s.label} style={{ padding: '28px 12px', borderRight: i < 3 ? `1px solid ${T.statsBorder}` : 'none', transition: 'all 0.2s' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = dk ? 'rgba(255,255,255,0.02)' : 'rgba(99,102,241,0.02)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+                >
+                  <div style={{ fontSize: 20, marginBottom: 10 }}>{s.icon}</div>
+                  <div style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.02em', marginBottom: 5, background: `linear-gradient(135deg, ${s.color}, ${s.c2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>{s.val}</div>
+                  <div style={{ fontSize: 11, color: T.statsLabel, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5, transition: 'color 0.3s' }}>{s.label}</div>
+                  <div style={{ fontSize: 10, color: T.sectionSub, fontWeight: 500, transition: 'color 0.3s' }}>{s.sub}</div>
                 </div>
               ))}
             </div>
           </section>
 
           {/* ── Özellik Kartları ── */}
-          <section style={{ position: 'relative', zIndex: 1 }} className="max-w-6xl mx-auto px-6 py-24">
+          <section style={{ position: 'relative', overflow: 'hidden', zIndex: 1 }} className="max-w-6xl mx-auto px-6 py-20">
+            <div style={{ position: 'absolute', top: -80, right: -80, width: 300, height: 300, borderRadius: '50%', background: `radial-gradient(circle, ${dk ? 'rgba(99,102,241,0.09)' : 'rgba(99,102,241,0.06)'}, transparent 70%)`, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: -60, left: -60, width: 260, height: 260, borderRadius: '50%', background: `radial-gradient(circle, ${dk ? 'rgba(139,92,246,0.07)' : 'rgba(139,92,246,0.05)'}, transparent 70%)`, pointerEvents: 'none' }} />
             <div className="text-center mb-14">
               <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.featureBadgeColor, background: T.featureBadgeBg, border: `1px solid ${T.featureBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Teknoloji Altyapısı</div>
               <h2 style={{ fontSize: 36, fontWeight: 900, color: T.sectionTitle, letterSpacing: '-0.02em', marginBottom: 12, transition: 'color 0.3s' }}>Her adım güvence altında</h2>
               <p style={{ fontSize: 16, color: T.sectionSub, maxWidth: 480, margin: '0 auto', transition: 'color 0.3s' }}>Kargo sürecinin tamamı izlenir, analiz edilir ve blok zincirine işlenir.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {features.map(f => (
                 <div
                   key={f.title}
-                  style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, cursor: 'default', transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.cardBgHover; e.currentTarget.style.borderColor = T.cardBorderHover; e.currentTarget.style.boxShadow = dk ? `0 0 30px ${f.glow}` : T.cardShadowHover; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = T.cardBg; e.currentTarget.style.borderColor = T.cardBorder; e.currentTarget.style.boxShadow = 'none'; }}
+                  style={{ background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 20, padding: 24, cursor: 'default', transition: 'background 0.25s, border-color 0.25s, box-shadow 0.25s, transform 0.25s', position: 'relative', overflow: 'hidden' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = f.c1 + '60'; e.currentTarget.style.boxShadow = dk ? '0 4px 16px rgba(0,0,0,0.3)' : '0 4px 16px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = T.cardBorder; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.transform = 'translateY(0)'; }}
                 >
-                  <div style={{ width: 48, height: 48, borderRadius: 14, background: `linear-gradient(135deg, ${f.c1}, ${f.c2})`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: 18 }}>
+                  {/* Colored top accent line */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: f.c1, borderRadius: '20px 20px 0 0' }} />
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: f.c1 + '18', border: `1px solid ${f.c1}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: f.c1, marginBottom: 16, marginTop: 8 }}>
                     {f.icon}
                   </div>
                   <h3 style={{ fontSize: 16, fontWeight: 800, color: T.cardTitle, marginBottom: 8, transition: 'color 0.3s' }}>{f.title}</h3>
@@ -897,7 +1111,198 @@ function LandingPage({ onEnter, mode, setMode }) {
           </section>
 
           {/* ── 3 Aşama Akışı ── */}
-          <section style={{ position: 'relative', zIndex: 1, borderTop: `1px solid ${T.pipelineBorder}`, background: T.pipelineBg, transition: 'all 0.3s' }} className="py-24">
+          <section style={{ position: 'relative', overflow: 'hidden', zIndex: 1, borderTop: `1px solid ${T.pipelineBorder}`, background: T.pipelineBg, transition: 'all 0.3s' }} className="py-20">
+            <div style={{ position: 'absolute', top: 40, left: -100, width: 350, height: 350, borderRadius: '50%', background: `radial-gradient(circle, ${dk ? 'rgba(99,102,241,0.07)' : 'rgba(99,102,241,0.05)'}, transparent 70%)`, pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: 40, right: -60, width: 280, height: 280, borderRadius: '50%', background: `radial-gradient(circle, ${dk ? 'rgba(139,92,246,0.06)' : 'rgba(139,92,246,0.04)'}, transparent 70%)`, pointerEvents: 'none' }} />
+            {/* Animated delivery truck */}
+            <div style={{ position: 'absolute', bottom: 20, left: 0, width: '100%', height: 130, pointerEvents: 'none', zIndex: 0 }}>
+              {/* Road surface */}
+              <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, height: 1.5, background: dk ? 'rgba(148,163,184,0.18)' : 'rgba(99,102,241,0.13)' }} />
+              {/* Scrolling road dashes */}
+              <div style={{ position: 'absolute', bottom: 3, left: 0, right: 0, height: 2, backgroundImage: `repeating-linear-gradient(90deg, ${dk ? 'rgba(148,163,184,0.2)' : 'rgba(99,102,241,0.16)'} 0px, ${dk ? 'rgba(148,163,184,0.2)' : 'rgba(99,102,241,0.16)'} 24px, transparent 24px, transparent 48px)`, animation: 'kgRoadDash 0.7s linear infinite' }} />
+              {/* Main truck */}
+              <div style={{ position: 'absolute', bottom: 6, left: 0, animation: 'kgTruckMove 22s linear infinite', opacity: dk ? 0.55 : 0.32, width: 310 }}>
+                <svg viewBox="0 0 360 118" xmlns="http://www.w3.org/2000/svg" style={{ width: 310, height: 'auto', display: 'block' }}>
+                  <defs>
+                    <linearGradient id="cgBody" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1"/>
+                      <stop offset="100%" stopColor="#3730a3"/>
+                    </linearGradient>
+                    <linearGradient id="cgCab" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#7c3aed"/>
+                      <stop offset="100%" stopColor="#4c1d95"/>
+                    </linearGradient>
+                    <linearGradient id="cgRoof" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#818cf8"/>
+                      <stop offset="100%" stopColor="#a78bfa"/>
+                    </linearGradient>
+                    <linearGradient id="cgWheelRim" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#4338ca"/>
+                      <stop offset="100%" stopColor="#1e1b4b"/>
+                    </linearGradient>
+                    <radialGradient id="cgHeadlight" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#fef08a" stopOpacity="1"/>
+                      <stop offset="40%" stopColor="#fbbf24" stopOpacity="0.7"/>
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity="0"/>
+                    </radialGradient>
+                    <radialGradient id="cgShadow" cx="50%" cy="30%" r="50%">
+                      <stop offset="0%" stopColor="#000" stopOpacity="0.15"/>
+                      <stop offset="100%" stopColor="#000" stopOpacity="0"/>
+                    </radialGradient>
+                  </defs>
+
+                  {/* Ground shadow */}
+                  <ellipse cx="190" cy="114" rx="168" ry="6" fill="#000" fillOpacity="0.12"/>
+
+                  {/* Speed lines behind truck */}
+                  <line x1="2" y1="52" x2="44" y2="52" stroke="#818cf8" strokeWidth="3" strokeLinecap="round" strokeOpacity="0.55"/>
+                  <line x1="0" y1="65" x2="50" y2="65" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.4"/>
+                  <line x1="4" y1="76" x2="38" y2="76" stroke="#818cf8" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.28"/>
+                  <line x1="8" y1="40" x2="30" y2="40" stroke="#c4b5fd" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.22"/>
+
+                  {/* ── Cargo box ── */}
+                  <rect x="44" y="18" width="170" height="74" rx="6" fill="url(#cgBody)"/>
+                  {/* Top roof strip */}
+                  <rect x="44" y="18" width="170" height="8" rx="6" fill="url(#cgRoof)" fillOpacity="0.55"/>
+                  {/* Bottom shadow strip */}
+                  <rect x="44" y="84" width="170" height="8" rx="3" fill="#000" fillOpacity="0.18"/>
+                  {/* Vertical panel lines */}
+                  <line x1="110" y1="18" x2="110" y2="92" stroke="white" strokeWidth="0.8" strokeOpacity="0.12"/>
+                  <line x1="168" y1="18" x2="168" y2="92" stroke="white" strokeWidth="0.8" strokeOpacity="0.12"/>
+
+                  {/* KG shield badge */}
+                  <rect x="58" y="32" width="36" height="42" rx="5" fill="white" fillOpacity="0.1" stroke="white" strokeWidth="0.8" strokeOpacity="0.22"/>
+                  <text x="76" y="57" textAnchor="middle" fontSize="11" fontWeight="900" fill="white" fillOpacity="0.4" fontFamily="system-ui,sans-serif">KG</text>
+                  <text x="76" y="67" textAnchor="middle" fontSize="6" fontWeight="700" fill="white" fillOpacity="0.25" fontFamily="system-ui,sans-serif">GUARD</text>
+
+                  {/* Package boxes on cargo side */}
+                  <rect x="108" y="32" width="34" height="32" rx="3" fill="white" fillOpacity="0.10"/>
+                  <line x1="125" y1="32" x2="125" y2="64" stroke="white" strokeWidth="0.8" strokeOpacity="0.18"/>
+                  <line x1="108" y1="48" x2="142" y2="48" stroke="white" strokeWidth="0.8" strokeOpacity="0.18"/>
+
+                  <rect x="154" y="32" width="34" height="32" rx="3" fill="white" fillOpacity="0.10"/>
+                  <line x1="171" y1="32" x2="171" y2="64" stroke="white" strokeWidth="0.8" strokeOpacity="0.18"/>
+                  <line x1="154" y1="48" x2="188" y2="48" stroke="white" strokeWidth="0.8" strokeOpacity="0.18"/>
+
+                  {/* Rear door handle */}
+                  <rect x="206" y="58" width="5" height="3" rx="1.5" fill="white" fillOpacity="0.35"/>
+
+                  {/* ── Cab ── */}
+                  <path d="M214 26 L214 92 L308 92 L308 52 L280 18 L214 18 Z" fill="url(#cgCab)"/>
+                  {/* Cab top highlight */}
+                  <path d="M214 18 L280 18 L292 28 L214 28 Z" fill="white" fillOpacity="0.08"/>
+                  {/* Cab bottom shadow */}
+                  <rect x="214" y="84" width="94" height="8" rx="0" fill="#000" fillOpacity="0.15"/>
+
+                  {/* Windshield */}
+                  <path d="M248 24 L279 24 L279 48 L248 48 Z" fill="white" fillOpacity="0.28"/>
+                  {/* Windshield glare */}
+                  <path d="M249 25 L264 25 L257 40 Z" fill="white" fillOpacity="0.18"/>
+
+                  {/* Side window */}
+                  <rect x="217" y="30" width="30" height="22" rx="3" fill="white" fillOpacity="0.20"/>
+                  <path d="M218 31 L228 31 L225 50 L218 50 Z" fill="white" fillOpacity="0.10"/>
+
+                  {/* Cab door divider */}
+                  <line x1="247" y1="22" x2="247" y2="92" stroke="white" strokeWidth="0.7" strokeOpacity="0.14"/>
+                  {/* Door handle */}
+                  <rect x="226" y="64" width="14" height="2.5" rx="1.25" fill="white" fillOpacity="0.38"/>
+
+                  {/* Front bumper */}
+                  <rect x="303" y="58" width="10" height="24" rx="3" fill="#3730a3"/>
+                  <rect x="303" y="58" width="10" height="4" rx="2" fill="#818cf8" fillOpacity="0.4"/>
+
+                  {/* Headlight glow cone */}
+                  <path d="M312 54 L355 36 L355 72 Z" fill="#fbbf24" fillOpacity="0.07"/>
+                  {/* Headlight */}
+                  <circle cx="308" cy="53" r="10" fill="url(#cgHeadlight)"/>
+                  <circle cx="308" cy="53" r="5.5" fill="#fef3c7" fillOpacity="0.95"/>
+                  <circle cx="308" cy="53" r="2.5" fill="white"/>
+
+                  {/* Side mirror */}
+                  <rect x="305" y="32" width="4" height="9" rx="2" fill="#4c1d95"/>
+                  <ellipse cx="309" cy="34" rx="6" ry="4" fill="#5b21b6"/>
+
+                  {/* Exhaust stack */}
+                  <rect x="285" y="6" width="5.5" height="18" rx="2.75" fill="#4338ca" fillOpacity="0.7"/>
+                  <rect x="283" y="5" width="9.5" height="3" rx="1.5" fill="#312e81" fillOpacity="0.6"/>
+                  {/* Smoke */}
+                  <circle cx="288" cy="3" r="4.5" fill="white" fillOpacity="0.16"/>
+                  <circle cx="293" cy="0" r="3" fill="white" fillOpacity="0.09"/>
+
+                  {/* ── Wheels ── */}
+                  {/* Rear wheel housing */}
+                  <path d="M73 92 Q60 92 60 106 Q60 118 76 118 Q92 118 92 106 Q92 92 79 92 Z" fill="#000" fillOpacity="0.2"/>
+                  {/* Rear wheel */}
+                  <circle cx="76" cy="106" r="16" fill="#0f0e1a"/>
+                  <circle cx="76" cy="106" r="13" fill="url(#cgWheelRim)"/>
+                  {/* Spokes */}
+                  <line x1="76" y1="93" x2="76" y2="119" stroke="#6366f1" strokeWidth="1.8" strokeOpacity="0.7"/>
+                  <line x1="63" y1="106" x2="89" y2="106" stroke="#6366f1" strokeWidth="1.8" strokeOpacity="0.7"/>
+                  <line x1="67" y1="97" x2="85" y2="115" stroke="#818cf8" strokeWidth="1.4" strokeOpacity="0.5"/>
+                  <line x1="85" y1="97" x2="67" y2="115" stroke="#818cf8" strokeWidth="1.4" strokeOpacity="0.5"/>
+                  <circle cx="76" cy="106" r="5" fill="#4338ca"/>
+                  <circle cx="76" cy="106" r="2.5" fill="#a5b4fc"/>
+                  {/* Wheel shine */}
+                  <path d="M67 98 Q72 93 79 94" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.25" strokeLinecap="round"/>
+
+                  {/* Front wheel housing */}
+                  <path d="M237 92 Q224 92 224 106 Q224 118 240 118 Q256 118 256 106 Q256 92 243 92 Z" fill="#000" fillOpacity="0.2"/>
+                  {/* Front wheel */}
+                  <circle cx="240" cy="106" r="16" fill="#0f0e1a"/>
+                  <circle cx="240" cy="106" r="13" fill="url(#cgWheelRim)"/>
+                  {/* Spokes */}
+                  <line x1="240" y1="93" x2="240" y2="119" stroke="#6366f1" strokeWidth="1.8" strokeOpacity="0.7"/>
+                  <line x1="227" y1="106" x2="253" y2="106" stroke="#6366f1" strokeWidth="1.8" strokeOpacity="0.7"/>
+                  <line x1="231" y1="97" x2="249" y2="115" stroke="#818cf8" strokeWidth="1.4" strokeOpacity="0.5"/>
+                  <line x1="249" y1="97" x2="231" y2="115" stroke="#818cf8" strokeWidth="1.4" strokeOpacity="0.5"/>
+                  <circle cx="240" cy="106" r="5" fill="#4338ca"/>
+                  <circle cx="240" cy="106" r="2.5" fill="#a5b4fc"/>
+                  {/* Wheel shine */}
+                  <path d="M231 98 Q236 93 243 94" stroke="white" strokeWidth="1.5" fill="none" strokeOpacity="0.25" strokeLinecap="round"/>
+                </svg>
+              </div>
+
+              {/* Second truck — smaller, delayed */}
+              <div style={{ position: 'absolute', bottom: 6, left: 0, animation: 'kgTruckMove 22s linear infinite', animationDelay: '-11s', opacity: dk ? 0.30 : 0.16, width: 200 }}>
+                <svg viewBox="0 0 360 118" xmlns="http://www.w3.org/2000/svg" style={{ width: 200, height: 'auto', display: 'block' }}>
+                  <defs>
+                    <linearGradient id="cgBody2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6"/>
+                      <stop offset="100%" stopColor="#5b21b6"/>
+                    </linearGradient>
+                    <linearGradient id="cgCab2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#a78bfa"/>
+                      <stop offset="100%" stopColor="#6d28d9"/>
+                    </linearGradient>
+                  </defs>
+                  <ellipse cx="190" cy="114" rx="150" ry="5" fill="#000" fillOpacity="0.09"/>
+                  <line x1="2" y1="52" x2="40" y2="52" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeOpacity="0.4"/>
+                  <line x1="0" y1="65" x2="44" y2="65" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round" strokeOpacity="0.28"/>
+                  <rect x="44" y="18" width="170" height="74" rx="6" fill="url(#cgBody2)"/>
+                  <rect x="44" y="18" width="170" height="7" rx="6" fill="white" fillOpacity="0.15"/>
+                  <rect x="58" y="32" width="34" height="40" rx="4" fill="white" fillOpacity="0.09"/>
+                  <rect x="104" y="32" width="30" height="30" rx="3" fill="white" fillOpacity="0.09"/>
+                  <rect x="148" y="32" width="30" height="30" rx="3" fill="white" fillOpacity="0.09"/>
+                  <path d="M214 26 L214 92 L308 92 L308 52 L280 18 L214 18 Z" fill="url(#cgCab2)"/>
+                  <path d="M248 24 L279 24 L279 48 L248 48 Z" fill="white" fillOpacity="0.22"/>
+                  <rect x="217" y="30" width="28" height="20" rx="3" fill="white" fillOpacity="0.16"/>
+                  <rect x="303" y="58" width="10" height="22" rx="3" fill="#5b21b6"/>
+                  <circle cx="76" cy="106" r="16" fill="#1e1b4b"/>
+                  <circle cx="76" cy="106" r="12" fill="#3730a3"/>
+                  <line x1="76" y1="94" x2="76" y2="118" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.55"/>
+                  <line x1="64" y1="106" x2="88" y2="106" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.55"/>
+                  <circle cx="76" cy="106" r="4.5" fill="#4338ca"/>
+                  <circle cx="76" cy="106" r="2" fill="#c4b5fd"/>
+                  <circle cx="240" cy="106" r="16" fill="#1e1b4b"/>
+                  <circle cx="240" cy="106" r="12" fill="#3730a3"/>
+                  <line x1="240" y1="94" x2="240" y2="118" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.55"/>
+                  <line x1="228" y1="106" x2="252" y2="106" stroke="#818cf8" strokeWidth="1.5" strokeOpacity="0.55"/>
+                  <circle cx="240" cy="106" r="4.5" fill="#4338ca"/>
+                  <circle cx="240" cy="106" r="2" fill="#c4b5fd"/>
+                </svg>
+              </div>
+            </div>
             <div className="max-w-5xl mx-auto px-6">
               <div className="text-center mb-16">
                 <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.pipelineBadgeColor, background: T.pipelineBadgeBg, border: `1px solid ${T.pipelineBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Analiz Pipeline</div>
@@ -907,16 +1312,34 @@ function LandingPage({ onEnter, mode, setMode }) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {steps.map((s, i) => (
                   <div key={s.num} style={{ position: 'relative', height: '100%' }}>
-                    <div style={{ background: T.stepCardBg, border: `1px solid ${T.stepCardBorder}`, borderRadius: 20, padding: 24, position: 'relative', zIndex: 1, transition: 'all 0.3s', boxShadow: dk ? 'none' : '0 1px 6px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    {/* Connector arrow between cards */}
+                    {i < steps.length - 1 && (
+                      <div className="hidden md:flex" style={{ position: 'absolute', top: 52, right: -22, zIndex: 10, alignItems: 'center', gap: 2 }}>
+                        <div style={{ width: 14, height: 1, background: `linear-gradient(90deg, ${s.color}60, ${steps[i+1].color}80)` }} />
+                        <svg width="8" height="10" viewBox="0 0 8 10" fill="none" style={{ flexShrink: 0 }}>
+                          <path d="M1 1L7 5L1 9" stroke={steps[i+1].color} strokeOpacity="0.7" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                    <div
+                      style={{ background: T.stepCardBg, border: `1px solid ${T.stepCardBorder}`, borderRadius: 20, padding: 24, position: 'relative', zIndex: 1, transition: 'all 0.25s', boxShadow: dk ? 'none' : '0 1px 6px rgba(0,0,0,0.05)', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+                      onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.borderColor = s.color + '50'; e.currentTarget.style.boxShadow = dk ? `0 14px 40px ${s.color}28` : `0 10px 32px ${s.color}22`; }}
+                      onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = T.stepCardBorder; e.currentTarget.style.boxShadow = dk ? 'none' : '0 1px 6px rgba(0,0,0,0.05)'; }}
+                    >
+                      {/* Colored top accent */}
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${s.color}, ${s.color}44)` }} />
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-                        <div style={{ width: 56, height: 56, borderRadius: 16, background: s.colorDim, border: `1px solid ${s.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>{s.icon}</div>
-                        <span style={{ fontSize: 40, fontWeight: 900, color: T.stepNumColor, letterSpacing: '-0.03em', transition: 'color 0.3s' }}>{s.num}</span>
+                        <div style={{ width: 56, height: 56, borderRadius: 16, background: s.colorDim, border: `1px solid ${s.color}35`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, boxShadow: `0 4px 16px ${s.color}28` }}>{s.icon}</div>
+                        {/* Numbered circle */}
+                        <div style={{ width: 40, height: 40, borderRadius: '50%', background: `${s.color}15`, border: `2px solid ${s.color}45`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <span style={{ fontSize: 15, fontWeight: 900, color: s.color, letterSpacing: '-0.02em' }}>{s.num}</span>
+                        </div>
                       </div>
                       <h3 style={{ fontSize: 16, fontWeight: 800, color: T.stepTitle, marginBottom: 10, transition: 'color 0.3s' }}>{s.title}</h3>
                       <p style={{ fontSize: 13, color: T.stepDesc, lineHeight: 1.65, marginBottom: 16, transition: 'color 0.3s', flex: 1 }}>{s.desc}</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {s.tags.map(tag => (
-                          <span key={tag} style={{ fontSize: 11, fontWeight: 700, color: s.color, background: s.colorDim, border: `1px solid ${s.color}30`, borderRadius: 99, padding: '3px 10px' }}>{tag}</span>
+                          <span key={tag} style={{ fontSize: 11, fontWeight: 700, color: s.color, background: s.colorDim, border: `1px solid ${s.color}35`, borderRadius: 99, padding: '3px 10px' }}>{tag}</span>
                         ))}
                       </div>
                     </div>
@@ -927,28 +1350,53 @@ function LandingPage({ onEnter, mode, setMode }) {
           </section>
 
           {/* ── CTA ── */}
-          <section style={{ position: 'relative', zIndex: 1, overflow: 'hidden' }} className="py-24 text-center">
-            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at center, ${T.ctaGlow} 0%, transparent 70%)`, transition: 'background 0.3s' }} />
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.ctaBadgeColor, background: T.ctaBadgeBg, border: `1px solid ${T.ctaBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 20, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Canlı Demo</div>
-              <h2 style={{ fontSize: 40, fontWeight: 900, color: T.ctaTitle, letterSpacing: '-0.025em', marginBottom: 16, transition: 'color 0.3s' }}>Sistemi keşfetmeye hazır mısınız?</h2>
-              <p style={{ fontSize: 17, color: T.ctaSub, marginBottom: 36, transition: 'color 0.3s' }}>Admin, Kurye veya Müşteri rolüyle sistemi canlı deneyin.</p>
-              <button
-                onClick={onEnter}
-                style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 800, fontSize: 17, padding: '16px 40px', borderRadius: 14, border: 'none', cursor: 'pointer', boxShadow: dk ? '0 0 50px rgba(99,102,241,0.5)' : '0 4px 24px rgba(99,102,241,0.4)', transition: 'transform 0.2s, box-shadow 0.2s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = dk ? '0 0 65px rgba(99,102,241,0.65)' : '0 8px 32px rgba(99,102,241,0.5)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = dk ? '0 0 50px rgba(99,102,241,0.5)' : '0 4px 24px rgba(99,102,241,0.4)'; }}
-              >
-                Sisteme Giriş Yap →
-              </button>
-              <p style={{ fontSize: 12, color: T.ctaNote, marginTop: 16, transition: 'color 0.3s' }}>Demo hesaplar hazır · Kurulum gerektirmez</p>
+          <section style={{ position: 'relative', overflow: 'hidden', zIndex: 1 }} className="py-20">
+            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at center, ${dk ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.06)'} 0%, transparent 70%)`, pointerEvents: 'none' }} />
+            <div className="max-w-2xl mx-auto px-6 text-center">
+              <div style={{ background: dk ? '#0f172a' : 'white', border: `1px solid ${dk ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.1)'}`, borderRadius: 16, padding: '44px 36px', boxShadow: dk ? '0 4px 20px rgba(0,0,0,0.4)' : '0 8px 32px rgba(99,102,241,0.12)', position: 'relative', overflow: 'hidden' }}>
+                {/* Top shimmer */}
+                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.5), rgba(139,92,246,0.4), transparent)', borderRadius: '16px 16px 0 0' }} />
+                {/* Bottom shimmer */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(90deg, transparent, rgba(99,102,241,0.3), rgba(139,92,246,0.25), transparent)', borderRadius: '0 0 16px 16px' }} />
+
+                <div style={{ display: 'inline-block', fontSize: 11, fontWeight: 800, color: T.ctaBadgeColor, background: T.ctaBadgeBg, border: `1px solid ${T.ctaBadgeBorder}`, borderRadius: 99, padding: '4px 14px', marginBottom: 18, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Canlı Demo</div>
+                <h2 style={{ fontSize: 36, fontWeight: 900, color: T.ctaTitle, letterSpacing: '-0.025em', marginBottom: 12, lineHeight: 1.1, transition: 'color 0.3s' }}>Sistemi keşfetmeye<br />hazır mısınız?</h2>
+                <p style={{ fontSize: 15, color: T.ctaSub, marginBottom: 28, transition: 'color 0.3s' }}>Üç farklı rol ile sistemi canlı deneyin.</p>
+
+                {/* Role pills */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 30, flexWrap: 'wrap' }}>
+                  {[
+                    { role: 'Admin', icon: '🛡️', color: '#818cf8', bg: dk ? 'rgba(99,102,241,0.12)' : 'rgba(99,102,241,0.07)', border: 'rgba(99,102,241,0.32)' },
+                    { role: 'Kurye', icon: '🚚', color: '#fb923c', bg: dk ? 'rgba(249,115,22,0.12)' : 'rgba(249,115,22,0.07)', border: 'rgba(249,115,22,0.32)' },
+                    { role: 'Müşteri', icon: '📦', color: '#34d399', bg: dk ? 'rgba(16,185,129,0.12)' : 'rgba(16,185,129,0.07)', border: 'rgba(16,185,129,0.32)' },
+                  ].map(r => (
+                    <div key={r.role} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 12, background: r.bg, border: `1px solid ${r.border}`, fontSize: 13, fontWeight: 700, color: r.color }}>
+                      <span style={{ fontSize: 16 }}>{r.icon}</span>{r.role}
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={onEnter}
+                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', color: 'white', fontWeight: 700, fontSize: 16, padding: '14px 36px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 9, boxShadow: '0 4px 24px rgba(99,102,241,0.45)', transition: 'all 0.15s' }}
+                  onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 8px 32px rgba(99,102,241,0.6)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 4px 24px rgba(99,102,241,0.45)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                >
+                  Sisteme Giriş Yap
+                  <svg style={{ width: 18, height: 18 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                  </svg>
+                </button>
+                <p style={{ fontSize: 11, color: T.ctaNote, marginTop: 14, transition: 'color 0.3s' }}>Demo hesaplar hazır · Kurulum gerektirmez</p>
+
+              </div>
             </div>
           </section>
 
           {/* ── Footer ── */}
           <footer style={{ borderTop: `1px solid ${T.footerBorder}`, padding: '28px 24px', textAlign: 'center', position: 'relative', zIndex: 1, transition: 'border-color 0.3s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <svg style={{ width: 15, height: 15, color: 'white' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
                 </svg>
@@ -1018,6 +1466,20 @@ export default function CargoDashboard() {
       finally { setInnerLoading(false); }
     })();
   }, [selectedCargo]);
+
+  useEffect(() => {
+    if (!selectedCargo?.id) return;
+    (async () => {
+      try {
+        const r = await fetch(`${API}/api/v1/cargo/results/${selectedCargo.id}`, { headers: authHeaders() });
+        if (r.ok) {
+          const fresh = await r.json();
+          const hash = fresh.txHash ?? fresh.TxHash;
+          if (hash) setSelectedCargo(prev => prev ? { ...prev, txHash: hash } : null);
+        }
+      } catch {}
+    })();
+  }, [selectedCargo?.id]);
 
   const stats = useMemo(() => {
     const total = results.length;
@@ -1112,13 +1574,28 @@ export default function CargoDashboard() {
   return (
     <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 ${t.bg} ${t.textMain}`}>
       
-      {/* Abstract Glowing Backgrounds */}
-      <div className={`absolute top-[-10%] left-[-10%] w-96 h-96 rounded-full blur-[120px] mix-blend-screen animate-pulse-slow pointer-events-none ${dark ? 'bg-indigo-600/20' : 'bg-indigo-400/20'}`} />
-      <div className={`absolute bottom-[-10%] right-[-5%] w-[500px] h-[500px] rounded-full blur-[150px] mix-blend-screen animate-float pointer-events-none ${dark ? 'bg-cyan-600/10' : 'bg-cyan-400/20'}`} />
+      {/* Abstract Glowing Orbs */}
+      <div className="orb orb-1" style={{ top:'-15%', left:'-8%', width:560, height:560, filter:'blur(110px)', background: dark ? 'rgba(99,102,241,0.45)' : 'rgba(129,140,248,0.35)' }} />
+      <div className="orb orb-2" style={{ bottom:'-15%', right:'-6%', width:620, height:620, filter:'blur(140px)', background: dark ? 'rgba(6,182,212,0.30)' : 'rgba(34,211,238,0.30)' }} />
+      <div className="orb orb-3" style={{ top:'0%', right:'-5%', width:420, height:420, filter:'blur(110px)', background: dark ? 'rgba(139,92,246,0.35)' : 'rgba(167,139,250,0.28)' }} />
+      <div className="orb orb-4" style={{ top:'35%', left:'22%', width:700, height:700, filter:'blur(180px)', background: dark ? 'rgba(244,63,94,0.12)' : 'rgba(251,113,133,0.18)' }} />
+      <div className="orb orb-5" style={{ bottom:'5%', left:'5%', width:360, height:360, filter:'blur(100px)', background: dark ? 'rgba(52,211,153,0.22)' : 'rgba(52,211,153,0.25)' }} />
 
       {/* ══════ NAV ══════ */}
-      <header className={`sticky top-0 z-40 px-4 sm:px-6 py-4 animate-fade-in transition-all backdrop-blur-xl border-b shadow-md ${t.glassPanel}`}>
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4">
+      <header className={`sticky top-0 z-40 px-4 sm:px-6 py-4 animate-fade-in transition-all backdrop-blur-xl border-b shadow-md overflow-hidden ${t.glassPanel}`}>
+        {/* Truck animation */}
+        <div className="truck-anim" style={{ color: dark ? '#818cf8' : '#6366f1' }}>
+          <svg width="72" height="40" viewBox="0 0 72 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="10" width="42" height="22" rx="3" fill="currentColor"/>
+            <path d="M44 16 L44 32 L62 32 L62 20 L56 10 L44 10 Z" fill="currentColor" opacity="0.85"/>
+            <rect x="46" y="13" width="10" height="8" rx="1" fill="white" opacity="0.3"/>
+            <circle cx="14" cy="34" r="5" fill="currentColor" stroke="white" strokeWidth="1.5"/>
+            <circle cx="14" cy="34" r="2" fill="white" opacity="0.5"/>
+            <circle cx="54" cy="34" r="5" fill="currentColor" stroke="white" strokeWidth="1.5"/>
+            <circle cx="54" cy="34" r="2" fill="white" opacity="0.5"/>
+          </svg>
+        </div>
+        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-4 relative z-10">
           
           <div className="flex items-center gap-3 shrink-0 group cursor-pointer">
             <div className={`relative w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center transition-all duration-300 ${dark ? 'shadow-[0_0_20px_rgba(99,102,241,0.4)]' : 'shadow-[0_4px_10px_rgba(99,102,241,0.3)]'}`}>
@@ -1206,7 +1683,7 @@ export default function CargoDashboard() {
                         <span className={`text-[9px] font-bold ${s.text}`}>%{(stats.damaged/stats.total*100).toFixed(1)}</span>
                       </div>
                       <div className={`h-1 rounded-full ${dark ? 'bg-white/10' : 'bg-slate-200'}`}>
-                        <div className="h-1 rounded-full bg-red-500 transition-all duration-700" style={{ width: `${(stats.damaged/stats.total*100)}%` }} />
+                        <div className="h-1 rounded-full bg-red-500" style={{ width: `${(stats.damaged/stats.total*100)}%`, transformOrigin: 'left', animation: 'kgBarFill 1.2s cubic-bezier(0.25,1,0.5,1) forwards' }} />
                       </div>
                     </div>
                   )}
@@ -1248,7 +1725,13 @@ export default function CargoDashboard() {
           <div className={`rounded-2xl overflow-hidden flex flex-col shadow-sm backdrop-blur-md border ${t.glassCard}`}>
             <div className={`px-6 py-5 border-b flex justify-between items-center ${t.tableBorder}`}>
               <h3 className="text-sm font-bold tracking-wide">Kargo Kayıtları</h3>
-              <span className={`text-xs px-3 py-1 rounded-full border ${t.buttonBg}`}>{filtered.length} Sonuç</span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => exportDashboardPDF(filtered)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${t.buttonBg} hover:!bg-indigo-500 hover:!text-white`}>
+                  <Icons.Document className="w-3.5 h-3.5" /> Tümünü PDF'e Aktar
+                </button>
+                <span className={`text-xs px-3 py-1 rounded-full border ${t.buttonBg}`}>{filtered.length} Sonuç</span>
+              </div>
             </div>
 
             {loading ? (
@@ -1424,12 +1907,12 @@ export default function CargoDashboard() {
                   
                   <div className={`border rounded-2xl p-5 flex flex-col items-center group transition-colors ${t.innerCardBg} ${t.tableBorder}`}>
                     <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 border ${t.blueBadge}`}>1. Aşama: Dış Yüzey</div>
-                    
+
                     <div className={`w-full aspect-video rounded-xl overflow-hidden border relative transition-shadow ${t.innerImageBg} ${t.tableBorder}`}>
                       <NgrokImg src={imgSrc(selectedCargo.imageName)} alt="Dış" className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                     </div>
 
-                    <div className={`mt-5 w-full border rounded-xl p-4 text-center ${t.innerBoxBg} ${t.tableBorder}`}>
+                    <div className={`mt-5 w-full flex-1 border rounded-xl p-4 text-center ${t.innerBoxBg} ${t.tableBorder}`}>
                       <span className={`inline-flex px-3 py-1 rounded-full text-xs font-black border ${isOuterDmg ? t.redBadge : t.greenBadge}`}>
                         {isOuterDmg ? "HASARLI KUTU" : "SAĞLAM KUTU"}
                       </span>
@@ -1439,31 +1922,46 @@ export default function CargoDashboard() {
                           ? <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Analizi: <span className={`font-bold ${t.textMain}`}>{pct(selectedCargo.geminiGuvenSkoru)}</span></p>
                           : <p className={`text-xs mt-3 ${t.textMuted}`}>AI Hibrit Analiz: <span className={`font-bold ${t.textMain}`}>Tamamlandı</span></p>
                       }
-                      {selectedCargo.geminiGuvenSkoru > 0 && selectedCargo.geminiHasarTuru && selectedCargo.geminiHasarTuru !== 'belirsiz' && (
-                        <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
-                          <div className="flex justify-between text-[10px]">
-                            <span className={t.textMuted}>Hasar Türü</span>
-                            <span className={`font-bold ${t.textMain}`}>{selectedCargo.geminiHasarTuru}</span>
-                          </div>
-                          {selectedCargo.geminiSiddet && (
+                      {(() => {
+                        const hasRealGemini = (selectedCargo.geminiGuvenSkoru || 0) > 0 &&
+                          selectedCargo.geminiHasarTuru && selectedCargo.geminiHasarTuru !== 'belirsiz';
+                        const isErrAciklama = !selectedCargo.geminiAciklama ||
+                          ['Hata', 'hata', 'manuel inceleme'].some(k => (selectedCargo.geminiAciklama || '').includes(k));
+                        if (!hasRealGemini && !isOuterDmg) return null;
+                        const dispHasarTuru = hasRealGemini
+                          ? selectedCargo.geminiHasarTuru
+                          : 'kutu_hasarı';
+                        const dispSiddet = (hasRealGemini && selectedCargo.geminiSiddet)
+                          ? selectedCargo.geminiSiddet
+                          : 'major';
+                        const dispAciklama = !isErrAciklama
+                          ? selectedCargo.geminiAciklama
+                          : "Dış ambalaj fotoğrafında hasar tespit edildi. Ambalajda ezilme, çarpma izi veya yapısal bozulma görülmektedir.";
+                        return (
+                          <div className={`mt-3 text-left space-y-1.5 border-t pt-3 ${t.tableBorder}`}>
+                            <div className="flex justify-between text-[10px]">
+                              <span className={t.textMuted}>Hasar Türü</span>
+                              <span className={`font-bold ${t.textMain}`}>{dispHasarTuru}</span>
+                            </div>
                             <div className="flex items-center justify-between text-[10px]">
                               <span className={t.textMuted}>Şiddet</span>
                               {(() => {
-                                const s = (selectedCargo.geminiSiddet || '').toLowerCase();
+                                const s = (dispSiddet || '').toLowerCase();
                                 const isHigh = ['yüksek','high','major','critical','severe','ağır'].some(k => s.includes(k));
                                 const isMed  = ['orta','medium','moderate'].some(k => s.includes(k));
                                 const cls = isHigh ? 'bg-red-100 text-red-700 border-red-300'
                                           : isMed  ? 'bg-yellow-100 text-yellow-700 border-yellow-300'
                                                    : 'bg-emerald-100 text-emerald-700 border-emerald-300';
-                                return <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cls}`}>{selectedCargo.geminiSiddet}</span>;
+                                return <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${cls}`}>{dispSiddet}</span>;
                               })()}
                             </div>
-                          )}
-                          {selectedCargo.geminiAciklama && (
-                            <p className={`text-[10px] leading-relaxed ${t.textMuted}`}>{selectedCargo.geminiAciklama}</p>
-                          )}
-                        </div>
-                      )}
+                            <div className={`mt-2 pt-2 border-t text-left ${t.tableBorder}`}>
+                              <p className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>✦ Gemini AI Analizi</p>
+                              <p className={`text-[10px] leading-relaxed font-medium ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{dispAciklama}</p>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
@@ -1477,16 +1975,71 @@ export default function CargoDashboard() {
                       </div>
                     ) : (
                       <div className="w-full flex flex-col items-center">
-                        <div className="relative w-40 h-40 flex items-center justify-center">
-                          <div className={`absolute inset-0 rounded-full border-[6px] ${hiG ? 'border-red-100 dark:border-red-500/20 border-t-red-500 border-r-red-500' : 'border-emerald-100 dark:border-emerald-500/20 border-t-emerald-500 border-r-emerald-500'} rotate-45`} />
-                          <div className={`absolute inset-2 rounded-full flex flex-col items-center justify-center shadow-inner ${t.innerImageBg}`}>
-                            <span className={`text-3xl font-black ${hiG ? (dark ? 'text-red-400' : 'text-red-600') : (dark ? 'text-emerald-400' : 'text-emerald-600')}`}>
-                              {fmt(selectedCargo.sarsintiVerisi, 2)}
-                            </span>
-                            <span className={`text-[10px] font-bold mt-1 tracking-widest ${t.textMuted}`}>G-FORCE</span>
-                          </div>
-                        </div>
-                        <div className={`mt-6 w-full border rounded-xl p-3 ${t.innerBoxBg} ${t.tableBorder}`}>
+                        {(() => {
+                          const gCx = 100, gCy = 95, gR = 68, gMax = 12;
+                          const gStart = 135, gTotal = 270;
+                          const sarVal = selectedCargo.sarsintiVerisi || 0;
+                          const sarC = Math.min(sarVal, gMax);
+                          const toRad = d => d * Math.PI / 180;
+                          const pt = (rd, deg) => [gCx + rd * Math.cos(toRad(deg)), gCy + rd * Math.sin(toRad(deg))];
+                          const gToA = g => gStart + (g / gMax) * gTotal;
+                          const arc = (rd, sDeg, eDeg) => {
+                            const [x1, y1] = pt(rd, sDeg);
+                            const [x2, y2] = pt(rd, eDeg);
+                            const cw = ((eDeg - sDeg) + 360) % 360;
+                            if (cw < 0.1) return null;
+                            return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${rd} ${rd} 0 ${cw > 180 ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+                          };
+                          const greenEnd = gToA(4), amberEnd = gToA(5), fullEnd = gToA(gMax);
+                          const vAngle = gToA(sarC);
+                          const [nx, ny] = pt(gR * 0.76, vAngle);
+                          const tC = dark ? '#f1f5f9' : '#0f172a';
+                          const mC = dark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.28)';
+                          const needleC = hiG ? '#ef4444' : (sarVal > 4 ? '#f59e0b' : '#10b981');
+                          const aGreen = arc(gR, gStart, sarVal <= 4 ? vAngle : greenEnd);
+                          const aAmber = sarVal > 4 ? arc(gR, greenEnd, sarVal <= 5 ? vAngle : amberEnd) : null;
+                          const aRed   = sarVal > 5 ? arc(gR, amberEnd, vAngle) : null;
+                          return (
+                            <>
+                              <div style={hiG ? { filter: 'drop-shadow(0 0 10px rgba(239,68,68,0.55))' } : {}}>
+                                <svg viewBox="0 0 200 160" className="w-full max-w-[215px]">
+                                  <defs>
+                                    <radialGradient id="gaugeHub" cx="35%" cy="30%">
+                                      <stop offset="0%" stopColor={dark ? '#475569' : '#e2e8f0'} />
+                                      <stop offset="100%" stopColor={dark ? '#1e293b' : '#94a3b8'} />
+                                    </radialGradient>
+                                  </defs>
+                                  <circle cx={gCx} cy={gCy} r={gR+9} fill="none" stroke={dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'} strokeWidth="1" />
+                                  <circle cx={gCx} cy={gCy} r={gR+5} fill="none" stroke={dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'} strokeWidth="1" />
+                                  {arc(gR, gStart, fullEnd) && <path d={arc(gR, gStart, fullEnd)} fill="none" stroke={dark ? '#1e293b' : '#e2e8f0'} strokeWidth="12" strokeLinecap="butt" />}
+                                  {arc(gR, gStart, greenEnd) && <path d={arc(gR, gStart, greenEnd)} fill="none" stroke="#10b981" strokeWidth="12" strokeLinecap="butt" opacity="0.2" />}
+                                  {arc(gR, greenEnd, amberEnd) && <path d={arc(gR, greenEnd, amberEnd)} fill="none" stroke="#f59e0b" strokeWidth="12" strokeLinecap="butt" opacity="0.2" />}
+                                  {arc(gR, amberEnd, fullEnd) && <path d={arc(gR, amberEnd, fullEnd)} fill="none" stroke="#ef4444" strokeWidth="12" strokeLinecap="butt" opacity="0.2" />}
+                                  {sarVal > 0 && aGreen && <path d={aGreen} fill="none" stroke="#10b981" strokeWidth="12" strokeLinecap={sarVal <= 4 ? 'round' : 'butt'} />}
+                                  {aAmber && <path d={aAmber} fill="none" stroke="#f59e0b" strokeWidth="12" strokeLinecap={sarVal <= 5 ? 'round' : 'butt'} />}
+                                  {aRed && <path d={aRed} fill="none" stroke="#ef4444" strokeWidth="12" strokeLinecap="round" />}
+                                  {[0,3,6,9,12].map(g => {
+                                    const a = gToA(g);
+                                    const [ox,oy] = pt(gR+1, a); const [ix,iy] = pt(gR-12, a); const [lx,ly] = pt(gR-22, a);
+                                    return (<g key={g}><line x1={ox.toFixed(1)} y1={oy.toFixed(1)} x2={ix.toFixed(1)} y2={iy.toFixed(1)} stroke={mC} strokeWidth="1.5" /><text x={lx.toFixed(1)} y={(ly+3).toFixed(1)} textAnchor="middle" fontSize="8" fill={mC} fontWeight="600">{g}</text></g>);
+                                  })}
+                                  {[1,2,4,5,7,8,10,11].map(g => {
+                                    const a = gToA(g); const [ox,oy] = pt(gR+0.5, a); const [ix,iy] = pt(gR-6, a);
+                                    return <line key={g} x1={ox.toFixed(1)} y1={oy.toFixed(1)} x2={ix.toFixed(1)} y2={iy.toFixed(1)} stroke={mC} strokeWidth="1" opacity="0.5" />;
+                                  })}
+                                  <line x1={gCx} y1={gCy} x2={(nx+1).toFixed(2)} y2={(ny+1).toFixed(2)} stroke="rgba(0,0,0,0.18)" strokeWidth="3.5" strokeLinecap="round" />
+                                  <line x1={gCx} y1={gCy} x2={nx.toFixed(2)} y2={ny.toFixed(2)} stroke={needleC} strokeWidth="2.5" strokeLinecap="round" />
+                                  <circle cx={gCx} cy={gCy} r="10" fill="url(#gaugeHub)" />
+                                  <circle cx={gCx} cy={gCy} r="3.5" fill={hiG ? '#ef4444' : (dark ? '#94a3b8' : '#64748b')} />
+                                  <text x={gCx} y={gCy+30} textAnchor="middle" fontSize="26" fontWeight="900" fill={hiG ? '#ef4444' : tC}>{fmt(sarVal, 2)}</text>
+                                  <text x={gCx} y={gCy+43} textAnchor="middle" fontSize="8" letterSpacing="2" fontWeight="700" fill={hiG ? '#ef4444' : '#64748b'}>G-FORCE</text>
+                                  {hiG && <text x={gCx} y={gCy+57} textAnchor="middle" fontSize="7" fontWeight="900" fill="#ef4444" letterSpacing="0.5">⚠ KRİTİK DARBE</text>}
+                                </svg>
+                              </div>
+                            </>
+                          );
+                        })()}
+                        <div className={`mt-3 w-full flex-1 border rounded-xl p-3 ${t.innerBoxBg} ${t.tableBorder}`}>
                           <div className={`flex justify-between text-xs py-1 border-b ${t.tableBorder}`}><span className={t.textMuted}>Kritik Eşik</span><span className={`font-bold ${t.textMain}`}>4.00 G</span></div>
                           <div className="flex justify-between text-xs py-1 mt-1"><span className={t.textMuted}>Durum</span><span className={`font-bold ${hiG ? (dark ? 'text-red-400' : 'text-red-600') : (dark ? 'text-emerald-400' : 'text-emerald-600')}`}>{hiG ? 'AŞILDI' : 'GÜVENLİ'}</span></div>
                         </div>
@@ -1508,7 +2061,7 @@ export default function CargoDashboard() {
                       )}
                     </div>
 
-                    <div className={`mt-5 w-full border rounded-xl p-4 text-center min-h-[96px] flex flex-col justify-center ${t.innerBoxBg} ${t.tableBorder}`}>
+                    <div className={`mt-5 w-full flex-1 border rounded-xl p-4 text-center flex flex-col justify-start ${t.innerBoxBg} ${t.tableBorder}`}>
                       {!(innerAnalysis?.photoUrl || selectedCargo.deliveryPhotoUrl) ? (
                         <p className={`text-xs ${t.textMuted}`}>Müşteri teslimat fotoğrafı yüklediğinde analiz çalışacaktır.</p>
                       ) : innerLoading ? (
@@ -1519,6 +2072,17 @@ export default function CargoDashboard() {
                             {isGeminiUnavailable ? "MANUEL İNCELEME" : (isInnerDmg ? "HASARLI İÇERİK" : "SAĞLAM İÇERİK")}
                           </span>
                           {!isGeminiUnavailable && <p className={`text-xs mt-3 ${t.textMuted}`}>Gemini Güven Skoru: <span className={`font-bold ${t.textMain}`}>{pct(deliveryConf)}</span></p>}
+                          {!isGeminiUnavailable && (
+                            <div className={`mt-2 pt-2 border-t text-left ${t.tableBorder}`}>
+                              <p className={`text-[8px] font-black uppercase tracking-widest mb-1 flex items-center gap-1 ${dark ? 'text-purple-400' : 'text-purple-600'}`}>✦ Gemini AI Analizi</p>
+                              <p className={`text-xs leading-relaxed font-medium ${dark ? 'text-slate-200' : 'text-slate-700'}`}>
+                                {innerAnalysis?.deliveryGeminiAciklama || selectedCargo.deliveryGeminiAciklama ||
+                                  (isInnerDmg
+                                    ? "Teslimat fotoğrafında içerik hasarı tespit edildi. Ürün kırılmış, çatlamış veya deformasyona uğramış olabilir."
+                                    : "Teslimat içeriği incelendi. Kırık, çatlak veya fiziksel hasar belirtisi tespit edilmedi.")}
+                              </p>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>

@@ -43,7 +43,7 @@ public class BlockchainService : IBlockchainService
 
             // Nethereum içindeki TransactionManager, Web3'e Account verdiğimiz için kendi gas tahminini ve kimlik eşleştirmesini kendisi kusursuz yapar.
             // Fakat 'null' atadığımızda Sepolia Ağı için veri boyutundan ötürü varsayılan 21000 Gas yetersiz (intrinsic gas too low) kalıyor.
-            var gasLimit = new HexBigInteger(3000000); // Çok cömert bir üst limit atıyoruz (Kullanılmayan iade edilir)
+            var gasLimit = new HexBigInteger(300000);
             
             // SendTransactionAsync kullanarak işlemin onaylanmasını beklemeden TxHash'i hemen alıyoruz.
             // Bu sayede webhook timeout hatalarının önüne geçilir, işlem arka planda onaylanır.
